@@ -1,0 +1,120 @@
+import { z } from 'zod';
+import { ModelGateway } from '../../models/gateway/model-gateway';
+
+export const RuntimeActionSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('FINAL_RESPONSE'),
+    payload: z.object({
+      text: z.string(),
+    }),
+  }),
+  z.object({
+    type: z.literal('TOOL_REQUEST'),
+    payload: z.object({
+      toolName: z.string(),
+      input: z.record(z.string(), z.any()),
+    }),
+  }),
+  z.object({
+    type: z.literal('CONTINUE'),
+    payload: z.object({
+      thought: z.string(),
+      nextAction: z.string().optional(),
+    }),
+  }),
+]);
+
+export type RuntimeAction = z.infer<typeof RuntimeActionSchema>;
+export type RuntimeActionType = RuntimeAction['type'];
+
+export interface TurnResult {
+  action: RuntimeActionType;
+  payload: any;
+  usage: {
+    totalTokens: number;
+  };
+}
+
+export type ExecutionState = 
+  | 'CREATED'
+  | 'RUNNING'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'CANCELLED';
+
+export interface ExecutionIdentity {
+  sessionId: string;
+  executionId: string;
+  agentId?: string;
+  userId?: string;
+}
+
+export interface ExecutionBudget {
+  /** Enforced: Stops execution if accumulated tokens exceed this limit */
+  maxTokens?: number;
+  /** NOT YET ENFORCED: Future support for cost-based limits */
+  maxCostUsd?: number;
+  /** NOT YET ENFORCED: Future support for max tool/reasoning steps */
+  maxSteps?: number;
+}
+
+export interface Execution {
+  executionId: string;
+  agentId?: string;
+  sessionId: string;
+  state: ExecutionState;
+  startedAt: Date;
+  deadline?: Date;
+  budget?: ExecutionBudget;
+}
+
+export interface ConversationContext {
+  messages: any[];
+  /** Future: summaries, pinned items, etc. */
+}
+
+export interface AgentContext {
+  identity: ExecutionIdentity;
+  task: string;
+  conversation: ConversationContext;
+  runtimeMetadata: Record<string, any>;
+  scopedData: Record<string, any>;
+}
+
+export interface ExecutionOptions {
+  timeoutMs?: number;
+  budget?: ExecutionBudget;
+  abortSignal?: AbortSignal;
+}
+
+/** Dependency Inversion: Core boundary interfaces */
+export interface StateManager {
+  /** Initializes a new Execution record */
+  createExecution(execution: Execution): Promise<void>;
+  
+  /** Updates the execution state */
+  saveState(executionId: string, state: ExecutionState): Promise<void>;
+  
+  /** Loads the scoped context required for this specific execution */
+  loadContext(identity: ExecutionIdentity, task: string): Promise<AgentContext>;
+}
+
+export interface ToolExecutor {
+  executeTool(toolName: string, args: Record<string, any>): Promise<any>;
+}
+
+export interface SkillSelector {
+  selectSkill(task: string, context: AgentContext): Promise<string | null>;
+}
+
+export interface AgentEventEmitter {
+  emit(event: string, payload: any): void;
+}
+
+export interface AgentRuntimeDependencies {
+  modelGateway: ModelGateway;
+  stateManager: StateManager;
+  toolExecutor: ToolExecutor;
+  skillSelector: SkillSelector;
+  eventEmitter: AgentEventEmitter;
+}

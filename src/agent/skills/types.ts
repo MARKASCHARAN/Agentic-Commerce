@@ -27,11 +27,25 @@ export interface SkillExecutionContext extends ExecutionIdentity {
 }
 
 /**
+ * Representation of a skill loaded from a definition file.
+ */
+export interface LoadedSkillDefinition {
+  instructions: string;
+  sourcePath: string;
+}
+
+/**
  * The base contract for a Skill.
  * A skill must explicitly define its input and output types.
  */
 export interface Skill<Input = unknown, Output = unknown> {
   metadata: SkillMetadata;
+  /** Declarative instructions loaded from SKILL.md */
+  instructions?: string;
+
+  /** Absolute path to the skill definition on disk */
+  sourcePath?: string;
+
   inputSchema: z.ZodType<Input>;
   outputSchema: z.ZodType<Output>;
 

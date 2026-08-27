@@ -1,8 +1,8 @@
 import { Skill, SkillId, SkillMetadata } from './types';
-import { 
-  SkillAlreadyRegisteredError, 
-  SkillNotFoundError, 
-  SkillValidationError 
+import {
+  SkillAlreadyRegisteredError,
+  SkillNotFoundError,
+  SkillValidationError
 } from './errors';
 
 /**

@@ -25,3 +25,17 @@ export class SkillValidationError extends SkillError {
     this.name = 'SkillValidationError';
   }
 }
+
+export class SkillFileNotFoundError extends SkillError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SkillFileNotFoundError';
+  }
+}
+
+export class SkillDefinitionError extends SkillError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SkillDefinitionError';
+  }
+}

@@ -29,6 +29,7 @@
   "dependencies": {
     "@ai-sdk/groq": "^4.0.33",
     "@ai-sdk/openai": "^4.0.50",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@prisma/client": "^5.22.0",
     "ai": "^7.0.83",
     "dotenv": "^17.4.2",

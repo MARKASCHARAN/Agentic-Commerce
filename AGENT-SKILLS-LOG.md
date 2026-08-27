@@ -60,6 +60,15 @@ This document serves as the ongoing development log and architectural reference 
   - Modified the `Tool` contract to require an `adapter: ToolAdapter<Input, Output>` instead of an inline `execute()` function.
   - Ensured the `ToolGateway` is fully blind to transports. It acts as an orchestrator, while the Adapter is the mechanism that executes the logic.
 
+### Step 4: MCP Tool Adapter
+- **Objective:** Implement the first external ToolAdapter using the Model Context Protocol (MCP).
+- **Implementation:**
+  - Integrated the official `@modelcontextprotocol/sdk` (TypeScript SDK).
+  - Built `MCPToolAdapter` mapping the generic `ToolAdapter` boundary directly to an injected MCP `Client`.
+  - Created deterministic payload translation logic and strict error wrapping (`MCPInvocationError`, `MCPProtocolError`, `MCPConnectionError`).
+  - Implemented comprehensive `inMemory` linked-pair testing for true end-to-end MCP behavior without remote network dependencies.
+  - **Critical Boundary:** The Agent, Gateway, and Tool abstractions remain 100% blind to MCP. MCP operates strictly as a dependency-injected execution backend.
+
 ---
 
 ## Metadata & Current Interfaces
@@ -101,5 +110,5 @@ export interface ToolAdapter<Input = unknown, Output = unknown> {
 
 ## Next Steps (Pending)
 - Policy Engine Integration
-- MCP Adapter / Integration
+- REST Adapter / Integration
 - Real Commerce Tool Implementations (Checkout, Catalog, etc.)

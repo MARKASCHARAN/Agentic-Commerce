@@ -27,6 +27,14 @@ export class SkillRegistry {
       throw new SkillAlreadyRegisteredError(skill.metadata.id);
     }
 
+    // Freeze capability declarations to prevent mutation after registration
+    if (skill.tools) {
+      Object.freeze(skill.tools);
+      skill.tools.forEach(t => Object.freeze(t));
+    }
+    if (skill.policy) Object.freeze(skill.policy);
+    if (skill.workflow) Object.freeze(skill.workflow);
+
     this.skills.set(skill.metadata.id, skill);
   }
 
@@ -101,6 +109,27 @@ export class SkillRegistry {
     }
     if (typeof skill.execute !== 'function') {
       throw new SkillValidationError('Skill is missing execute function.');
+    }
+
+    if (skill.tools) {
+      if (!Array.isArray(skill.tools)) {
+        throw new SkillValidationError('Skill tools must be an array.');
+      }
+      skill.tools.forEach((t, i) => {
+        if (!t.id) throw new SkillValidationError(`Skill tool at index ${i} is missing id.`);
+      });
+    }
+
+    if (skill.policy) {
+      if (!skill.policy.id) {
+        throw new SkillValidationError('Skill policy is missing id.');
+      }
+    }
+
+    if (skill.workflow) {
+      if (!skill.workflow.id) {
+        throw new SkillValidationError('Skill workflow is missing id.');
+      }
     }
   }
 }

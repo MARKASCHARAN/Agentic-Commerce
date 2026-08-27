@@ -27,6 +27,28 @@ export interface SkillExecutionContext extends ExecutionIdentity {
 }
 
 /**
+ * Declares a required tool capability for a skill.
+ */
+export interface SkillToolRequirement {
+  id: string;
+  description?: string;
+}
+
+/**
+ * Declares a required policy for a skill.
+ */
+export interface SkillPolicyRequirement {
+  id: string;
+}
+
+/**
+ * Declares a required workflow for a skill.
+ */
+export interface SkillWorkflowRequirement {
+  id: string;
+}
+
+/**
  * Representation of a skill loaded from a definition file.
  */
 export interface LoadedSkillDefinition {
@@ -40,6 +62,15 @@ export interface LoadedSkillDefinition {
  */
 export interface Skill<Input = unknown, Output = unknown> {
   metadata: SkillMetadata;
+  /** Required tools for this skill to operate */
+  tools?: SkillToolRequirement[];
+  
+  /** Required policy for this skill */
+  policy?: SkillPolicyRequirement;
+  
+  /** Required workflow for this skill */
+  workflow?: SkillWorkflowRequirement;
+
   /** Declarative instructions loaded from SKILL.md */
   instructions?: string;
 

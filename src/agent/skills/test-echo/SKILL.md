@@ -13,6 +13,17 @@ Used for testing the Skill Engine.
 - message: string
 
 ## Required capabilities
+
+### Tools
+
+None.
+
+### Policy
+
+None.
+
+### Workflow
+
 None.
 
 ## Validation

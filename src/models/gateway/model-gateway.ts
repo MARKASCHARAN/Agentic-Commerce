@@ -49,7 +49,7 @@ export class ModelGateway {
 
     this.events.on('MODEL_REQUEST_COMPLETED', (event) => logToDb(event, 'SUCCESS'));
     this.events.on('MODEL_FALLBACK_TRIGGERED', (event) => {
-      if (event.payload) { // Assuming payload holds the fallback successful response in this context
+      if (event.payload) {
         logToDb({ ...event, payload: event.payload }, 'FALLBACK_SUCCESS');
       }
     });

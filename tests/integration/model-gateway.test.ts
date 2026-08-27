@@ -19,7 +19,6 @@ describe('ModelGateway', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     gateway = new ModelGateway();
-    // Mute console output during expected errors
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
@@ -41,7 +40,6 @@ describe('ModelGateway', () => {
 
     expect(result.text).toBe('Hello from Groq');
     expect(mockGenerate).toHaveBeenCalled();
-    // Wait for the async event callback to trigger DB write
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(prisma.modelRequest.create).toHaveBeenCalledWith(
       expect.objectContaining({

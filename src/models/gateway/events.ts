@@ -16,6 +16,9 @@ export interface ModelEvent {
 
 type EventCallback = (event: ModelEvent) => void | Promise<void>;
 
+/**
+ * Simple event emitter for model gateway telemetry.
+ */
 export class ModelEventEmitter {
   private listeners: Record<string, EventCallback[]> = {};
 
@@ -26,10 +29,14 @@ export class ModelEventEmitter {
     this.listeners[eventType].push(callback);
   }
 
+  /**
+   * Emits an event to all registered listeners without blocking the main execution flow.
+   * Errors in listeners are caught and logged to prevent application crashes.
+   * 
+   * @param event - The event object to emit
+   */
   async emit(event: ModelEvent) {
     const callbacks = this.listeners[event.type] || [];
-    // We intentionally don't await all callbacks to avoid blocking the main flow,
-    // but for persistence we might want to catch errors.
     callbacks.forEach(cb => {
       try {
         const result = cb(event);

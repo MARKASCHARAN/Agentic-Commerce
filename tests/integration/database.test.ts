@@ -12,7 +12,6 @@ describe('Database Foundation', () => {
   const toolCallRepo = new ToolCallRepository();
 
   beforeAll(async () => {
-    // Optionally clear db or connect
   });
 
   afterAll(async () => {
@@ -27,18 +26,15 @@ describe('Database Foundation', () => {
     expect(agent).toHaveProperty('id');
     expect(agent.owner).toBe('test-user');
     
-    // cleanup
     await agentRepo.delete(agent.id);
   });
 
   it('can create session, store events, store tool calls, and restore state', async () => {
-    // create session
     const session = await sessionRepo.create({
       state: 'START'
     });
     expect(session).toHaveProperty('id');
 
-    // store event
     const event = await eventRepo.create({
       session: { connect: { id: session.id } },
       type: 'SESSION_CREATED',
@@ -46,7 +42,6 @@ describe('Database Foundation', () => {
     });
     expect(event).toHaveProperty('id');
 
-    // store tool call
     const toolCall = await toolCallRepo.create({
       session: { connect: { id: session.id } },
       tool: 'search_catalog',
@@ -55,14 +50,12 @@ describe('Database Foundation', () => {
     });
     expect(toolCall).toHaveProperty('id');
 
-    // restore session state
     const restored = await sessionRepo.findById(session.id);
     expect(restored).toBeDefined();
     expect(restored?.events.length).toBe(1);
     expect(restored?.tool_calls.length).toBe(1);
     expect(restored?.state).toBe('START');
 
-    // cleanup
     await prisma.event.delete({ where: { id: event.id } });
     await prisma.toolCall.delete({ where: { id: toolCall.id } });
     await prisma.session.delete({ where: { id: session.id } });

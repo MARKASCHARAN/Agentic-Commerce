@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ModelGateway } from '../../models/gateway/model-gateway';
+import { SkillRegistry } from '../skills/skill-registry';
 
 export const RuntimeActionSchema = z.discriminatedUnion('type', [
   z.object({
@@ -87,6 +88,17 @@ export interface ExecutionOptions {
   abortSignal?: AbortSignal;
 }
 
+export interface SkillExecutionRequest<Input = unknown> {
+  skillId: string;
+  input: Input;
+  options?: ExecutionOptions;
+}
+
+export interface SkillExecutionResult<Output = unknown> {
+  skillId: string;
+  output: Output;
+}
+
 /** Dependency Inversion: Core boundary interfaces */
 export interface StateManager {
   /** Initializes a new Execution record */
@@ -116,5 +128,6 @@ export interface AgentRuntimeDependencies {
   stateManager: StateManager;
   toolExecutor: ToolExecutor;
   skillSelector: SkillSelector;
+  skillRegistry?: SkillRegistry;
   eventEmitter: AgentEventEmitter;
 }

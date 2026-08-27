@@ -5,8 +5,11 @@ import {
   ExecutionOptions,
   Execution,
   RuntimeActionSchema,
-  TurnResult
+  TurnResult,
+  SkillExecutionRequest,
+  SkillExecutionResult
 } from './types';
+import { SkillNotFoundError, SkillValidationError } from '../skills/errors';
 
 /**
  * Core runtime that executes a single turn of an agentic workflow.
@@ -149,5 +152,75 @@ export class AgentRuntime {
   private async updateState(executionId: string, state: ExecutionState, identity: ExecutionIdentity) {
     await this.deps.stateManager.saveState(executionId, state);
     this.deps.eventEmitter.emit('STATE_CHANGED', { identity, state });
+  }
+
+  /**
+   * Executes a specific skill by resolving it from the SkillRegistry.
+   * Handles input/output validation and emits appropriate lifecycle events.
+   * 
+   * @param identity - The execution identity.
+   * @param request - The skill execution request containing the skillId and input.
+   * @returns A promise resolving to the typed skill execution result.
+   */
+  async executeSkill<Input = unknown, Output = unknown>(
+    identity: ExecutionIdentity,
+    request: SkillExecutionRequest<Input>
+  ): Promise<SkillExecutionResult<Output>> {
+    if (!this.deps.skillRegistry) {
+      throw new Error('SkillRegistry is not configured in AgentRuntimeDependencies');
+    }
+
+    if (request.options?.abortSignal?.aborted) {
+      throw request.options.abortSignal.reason || new Error('Execution cancelled before skill start');
+    }
+
+    // 1. Resolve skill (throws SkillNotFoundError if missing)
+    const skill = this.deps.skillRegistry.get(request.skillId);
+
+    this.deps.eventEmitter.emit('SKILL_STARTED', { identity, skillId: request.skillId });
+
+    try {
+      // 2. Validate input
+      let validatedInput: Input;
+      try {
+        validatedInput = await skill.inputSchema.parseAsync(request.input) as Input;
+      } catch (validationError: any) {
+        throw new SkillValidationError(`Invalid input for skill ${request.skillId}: ${validationError.message}`);
+      }
+
+      if (request.options?.abortSignal?.aborted) {
+        throw request.options.abortSignal.reason || new Error('Execution cancelled during skill execution');
+      }
+
+      // 3. Execute skill
+      const context = {
+        ...identity,
+        abortSignal: request.options?.abortSignal,
+      };
+      
+      const rawOutput = await skill.execute(validatedInput, context);
+
+      if (request.options?.abortSignal?.aborted) {
+        throw request.options.abortSignal.reason || new Error('Execution cancelled after skill execution');
+      }
+
+      // 4. Validate output
+      let validatedOutput: Output;
+      try {
+        validatedOutput = await skill.outputSchema.parseAsync(rawOutput) as Output;
+      } catch (validationError: any) {
+        throw new SkillValidationError(`Invalid output from skill ${request.skillId}: ${validationError.message}`);
+      }
+
+      this.deps.eventEmitter.emit('SKILL_COMPLETED', { identity, skillId: request.skillId, result: validatedOutput });
+
+      return {
+        skillId: request.skillId,
+        output: validatedOutput,
+      };
+    } catch (error: any) {
+      this.deps.eventEmitter.emit('SKILL_FAILED', { identity, skillId: request.skillId, error });
+      throw error;
+    }
   }
 }

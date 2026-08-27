@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AgentRuntime } from '../../src/agent/runtime/agent-runtime';
+import { z } from 'zod';
+import { SkillRegistry } from '../../src/agent/skills/skill-registry';
+import { Skill, SkillId, SkillExecutionContext } from '../../src/agent/skills/types';
 import { 
   AgentRuntimeDependencies, 
   ExecutionIdentity, 
@@ -47,6 +50,7 @@ describe('AgentRuntime Execution Loop', () => {
       eventEmitter: {
         emit: vi.fn(),
       } as AgentEventEmitter,
+      skillRegistry: new SkillRegistry(),
     };
 
     runtime = new AgentRuntime(mockDeps);
@@ -150,5 +154,121 @@ describe('AgentRuntime Execution Loop', () => {
       .rejects.toThrow('User clicked cancel');
 
     expect(mockDeps.stateManager.saveState).toHaveBeenLastCalledWith('exec-123', 'CANCELLED');
+  });
+
+  describe('executeSkill', () => {
+    const createEchoSkill = (): Skill<{ message: string }, { message: string }> => ({
+      metadata: { id: 'test.echo' as SkillId, name: 'Echo', description: 'desc', version: '1.0' },
+      inputSchema: z.object({ message: z.string() }),
+      outputSchema: z.object({ message: z.string() }),
+      execute: async (input) => ({ message: input.message }),
+    });
+
+    it('should successfully execute a registered skill with valid input and output', async () => {
+      const skill = createEchoSkill();
+      mockDeps.skillRegistry!.register(skill);
+
+      const result = await runtime.executeSkill(mockIdentity, {
+        skillId: 'test.echo',
+        input: { message: 'hello' }
+      });
+
+      expect(result.skillId).toBe('test.echo');
+      expect(result.output).toEqual({ message: 'hello' });
+      expect(mockDeps.eventEmitter.emit).toHaveBeenCalledWith('SKILL_STARTED', expect.objectContaining({ skillId: 'test.echo' }));
+      expect(mockDeps.eventEmitter.emit).toHaveBeenCalledWith('SKILL_COMPLETED', expect.objectContaining({ skillId: 'test.echo', result: { message: 'hello' } }));
+    });
+
+    it('should throw SkillNotFoundError if skill is missing', async () => {
+      await expect(runtime.executeSkill(mockIdentity, { skillId: 'does.not.exist', input: {} }))
+        .rejects.toThrow('Skill not found: does.not.exist');
+    });
+
+    it('should validate input and fail before executing if malformed', async () => {
+      const skill = createEchoSkill();
+      const executeSpy = vi.spyOn(skill, 'execute');
+      mockDeps.skillRegistry!.register(skill);
+
+      await expect(runtime.executeSkill(mockIdentity, {
+        skillId: 'test.echo',
+        input: { badInput: 123 }
+      })).rejects.toThrow('Invalid input for skill test.echo:');
+
+      expect(executeSpy).not.toHaveBeenCalled();
+      expect(mockDeps.eventEmitter.emit).toHaveBeenCalledWith('SKILL_FAILED', expect.objectContaining({ skillId: 'test.echo' }));
+    });
+
+    it('should validate output and fail safely if skill returns malformed output', async () => {
+      const skill = createEchoSkill();
+      // Force it to return bad output
+      skill.execute = async () => ({ wrong: true } as any);
+      mockDeps.skillRegistry!.register(skill);
+
+      await expect(runtime.executeSkill(mockIdentity, {
+        skillId: 'test.echo',
+        input: { message: 'hello' }
+      })).rejects.toThrow('Invalid output from skill test.echo:');
+
+      expect(mockDeps.eventEmitter.emit).toHaveBeenCalledWith('SKILL_FAILED', expect.objectContaining({ skillId: 'test.echo' }));
+    });
+
+    it('should pass correct context propagation', async () => {
+      const skill = createEchoSkill();
+      const executeSpy = vi.spyOn(skill, 'execute');
+      mockDeps.skillRegistry!.register(skill);
+
+      const abortController = new AbortController();
+
+      await runtime.executeSkill(mockIdentity, {
+        skillId: 'test.echo',
+        input: { message: 'ctx' },
+        options: { abortSignal: abortController.signal }
+      });
+
+      expect(executeSpy).toHaveBeenCalledWith(
+        { message: 'ctx' },
+        expect.objectContaining({
+          sessionId: 'session-123',
+          executionId: 'exec-123',
+          abortSignal: abortController.signal
+        })
+      );
+    });
+
+    it('should abort and not execute if abort signal is triggered early', async () => {
+      const abortController = new AbortController();
+      abortController.abort();
+      
+      const skill = createEchoSkill();
+      const executeSpy = vi.spyOn(skill, 'execute');
+      mockDeps.skillRegistry!.register(skill);
+
+      await expect(runtime.executeSkill(mockIdentity, {
+        skillId: 'test.echo',
+        input: { message: 'ctx' },
+        options: { abortSignal: abortController.signal }
+      })).rejects.toThrow();
+
+      expect(executeSpy).not.toHaveBeenCalled();
+    });
+
+    it('should isolate skills successfully without cross-talk', async () => {
+      const echoSkill = createEchoSkill();
+      const uppercaseSkill: Skill<{ text: string }, { text: string }> = {
+        metadata: { id: 'test.uppercase' as SkillId, name: 'Upper', description: 'desc', version: '1.0' },
+        inputSchema: z.object({ text: z.string() }),
+        outputSchema: z.object({ text: z.string() }),
+        execute: async (input) => ({ text: input.text.toUpperCase() }),
+      };
+
+      mockDeps.skillRegistry!.register(echoSkill);
+      mockDeps.skillRegistry!.register(uppercaseSkill);
+
+      const echoRes = await runtime.executeSkill(mockIdentity, { skillId: 'test.echo', input: { message: 'hi' }});
+      const upperRes = await runtime.executeSkill<{text: string}, {text: string}>(mockIdentity, { skillId: 'test.uppercase', input: { text: 'hi' }});
+
+      expect(echoRes.output.message).toBe('hi');
+      expect(upperRes.output.text).toBe('HI');
+    });
   });
 });

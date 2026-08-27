@@ -41,9 +41,9 @@ describe('AgentRuntime Execution Loop', () => {
         }),
         saveState: vi.fn().mockResolvedValue(undefined),
       } as StateManager,
-      toolExecutor: {
-        executeTool: vi.fn().mockResolvedValue({ success: true }),
-      } as ToolExecutor,
+      toolGateway: {
+        execute: vi.fn().mockResolvedValue({ output: { success: true } })
+      } as any,
       skillSelector: {
         selectSkill: vi.fn().mockResolvedValue(null),
       } as SkillSelector,
@@ -78,9 +78,7 @@ describe('AgentRuntime Execution Loop', () => {
 
     const result = await runtime.execute(mockIdentity, 'Process payment');
 
-    expect(mockDeps.toolExecutor.executeTool).toHaveBeenCalledWith('payment_tool', { amount: 100 });
-    expect(mockDeps.eventEmitter.emit).toHaveBeenCalledWith('TOOL_STARTED', expect.objectContaining({ tool: 'payment_tool' }));
-    expect(mockDeps.eventEmitter.emit).toHaveBeenCalledWith('TOOL_COMPLETED', expect.objectContaining({ tool: 'payment_tool', result: { success: true } }));
+    expect(mockDeps.toolGateway.execute).toHaveBeenCalledWith(expect.objectContaining({ toolId: 'payment_tool', input: { amount: 100 } }));
     
     expect(result).toEqual(expect.objectContaining({ 
       action: 'TOOL_REQUEST', 
@@ -96,12 +94,12 @@ describe('AgentRuntime Execution Loop', () => {
       usage: { totalTokens: 50 }
     });
     
-    mockDeps.toolExecutor.executeTool = vi.fn().mockRejectedValue(new Error('Tool Gateway not implemented'));
+    (mockDeps.toolGateway as any).execute = vi.fn().mockRejectedValue(new Error('Tool Gateway not implemented'));
 
     await expect(runtime.execute(mockIdentity, 'Do something'))
       .rejects.toThrow("Unsupported/Failed action: Tool 'future_tool' could not be executed. Reason: Tool Gateway not implemented");
 
-    expect(mockDeps.eventEmitter.emit).toHaveBeenCalledWith('TOOL_FAILED', expect.objectContaining({ tool: 'future_tool' }));
+    expect(mockDeps.eventEmitter.emit).toHaveBeenCalledWith('EXECUTION_FAILED', expect.anything());
     expect(mockDeps.stateManager.saveState).toHaveBeenLastCalledWith('exec-123', 'FAILED');
   });
 

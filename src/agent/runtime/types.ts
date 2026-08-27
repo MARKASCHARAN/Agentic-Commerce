@@ -111,9 +111,7 @@ export interface StateManager {
   loadContext(identity: ExecutionIdentity, task: string): Promise<AgentContext>;
 }
 
-export interface ToolExecutor {
-  executeTool(toolName: string, args: Record<string, any>): Promise<any>;
-}
+import { ToolGateway } from '../tools';
 
 export interface SkillSelector {
   selectSkill(task: string, context: AgentContext): Promise<string | null>;
@@ -126,7 +124,7 @@ export interface AgentEventEmitter {
 export interface AgentRuntimeDependencies {
   modelGateway: ModelGateway;
   stateManager: StateManager;
-  toolExecutor: ToolExecutor;
+  toolGateway: ToolGateway;
   skillSelector: SkillSelector;
   skillRegistry?: SkillRegistry;
   eventEmitter: AgentEventEmitter;

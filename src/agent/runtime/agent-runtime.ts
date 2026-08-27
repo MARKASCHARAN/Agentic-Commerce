@@ -101,15 +101,16 @@ export class AgentRuntime {
       } else if (action.type === 'TOOL_REQUEST') {
         const toolName = action.payload.toolName;
 
-        this.deps.eventEmitter.emit('TOOL_STARTED', { identity, tool: toolName });
-        
         try {
-          const toolResult = await this.deps.toolExecutor.executeTool(toolName, action.payload.input);
-          this.deps.eventEmitter.emit('TOOL_COMPLETED', { identity, tool: toolName, result: toolResult });
+          const gatewayResult = await this.deps.toolGateway.execute({
+            toolId: toolName,
+            input: action.payload.input,
+            context: { ...identity, abortSignal: abortController.signal }
+          });
           
-          finalResult = { action: action.type, payload: { toolName, result: toolResult }, usage: { totalTokens: modelRes.usage.totalTokens } };
+          finalResult = { action: action.type, payload: { toolName, result: gatewayResult.output }, usage: { totalTokens: modelRes.usage.totalTokens } };
         } catch (toolError: any) {
-          this.deps.eventEmitter.emit('TOOL_FAILED', { identity, tool: toolName, error: toolError });
+          // TOOL_FAILED is already emitted by ToolGateway
           throw new Error(`Unsupported/Failed action: Tool '${toolName}' could not be executed. Reason: ${toolError.message}`);
         }
       } else if (action.type === 'CONTINUE') {

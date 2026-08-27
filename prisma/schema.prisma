@@ -1,0 +1,275 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  merchants Merchant[]
+  sessions  Session[]
+}
+
+model Merchant {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user   User            @relation(fields: [userId], references: [id])
+  orders CommerceOrder[]
+}
+
+model Agent {
+  id           String   @id @default(uuid())
+  owner        String
+  role         String
+  publicKey    String?
+  permissions  Json     @default("[]")
+  limits       Json     @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  credentials  AgentCredential[]
+  capabilities AgentCapability[]
+  decisions    PolicyDecision[]
+}
+
+model AgentCredential {
+  id               String   @id @default(uuid())
+  agentId          String
+  provider         String
+  credentials_hash String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  agent Agent @relation(fields: [agentId], references: [id])
+}
+
+model AgentCapability {
+  id         String   @id @default(uuid())
+  agentId    String
+  capability String
+  limits     Json     @default("{}")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  agent Agent @relation(fields: [agentId], references: [id])
+}
+
+model Session {
+  id         String   @id @default(uuid())
+  userId     String?
+  merchantId String?
+  state      String   @default("CREATED")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user             User?             @relation(fields: [userId], references: [id])
+  messages         Message[]
+  skill_executions SkillExecution[]
+  tool_calls       ToolCall[]
+  orders           CommerceOrder[]
+  events           Event[]
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  sessionId String
+  sender    String
+  receiver  String
+  type      String
+  payload   Json
+  traceId   String?
+  timestamp DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id])
+}
+
+model Skill {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  schema      Json
+  version     String
+
+  executions  SkillExecution[]
+}
+
+model SkillExecution {
+  id        String   @id @default(uuid())
+  sessionId String
+  skillId   String
+  status    String
+  result    Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session Session @relation(fields: [sessionId], references: [id])
+  skill   Skill   @relation(fields: [skillId], references: [id])
+}
+
+model ToolCall {
+  id          String   @id @default(uuid())
+  sessionId   String
+  executionId String?
+  tool        String
+  input       Json
+  output      Json?
+  status      String
+  latency     Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  session Session @relation(fields: [sessionId], references: [id])
+}
+
+model CommerceOrder {
+  id         String   @id @default(uuid())
+  sessionId  String
+  merchantId String
+  buyerId    String?
+  total      Float
+  status     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  session  Session        @relation(fields: [sessionId], references: [id])
+  merchant Merchant       @relation(fields: [merchantId], references: [id])
+  items    CommerceItem[]
+  payments PaymentIntent[]
+}
+
+model CommerceItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  productId String
+  quantity  Int
+  price     Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order CommerceOrder @relation(fields: [orderId], references: [id])
+}
+
+model PaymentIntent {
+  id              String   @id @default(uuid())
+  orderId         String
+  amount          Float
+  status          String
+  idempotency_key String   @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  order   CommerceOrder @relation(fields: [orderId], references: [id])
+  refunds Refund[]
+}
+
+model Refund {
+  id        String   @id @default(uuid())
+  paymentId String
+  amount    Float
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payment PaymentIntent @relation(fields: [paymentId], references: [id])
+}
+
+model Policy {
+  id    String @id @default(uuid())
+  type  String
+  rules Json
+}
+
+model PolicyDecision {
+  id        String   @id @default(uuid())
+  agentId   String
+  action    String
+  result    String
+  reason    String?
+  timestamp DateTime @default(now())
+
+  agent Agent @relation(fields: [agentId], references: [id])
+}
+
+model WorkflowRun {
+  id            String         @id @default(uuid())
+  workflow_type String
+  status        String
+  state         Json           @default("{}")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  steps         WorkflowStep[]
+}
+
+model WorkflowStep {
+  id        String   @id @default(uuid())
+  runId     String
+  step_name String
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  run WorkflowRun @relation(fields: [runId], references: [id])
+}
+
+model Approval {
+  id          String   @id @default(uuid())
+  entity_type String
+  entity_id   String
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Event {
+  id        String   @id @default(uuid())
+  sessionId String
+  type      String
+  payload   Json
+  timestamp DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id])
+}
+
+model ModelRequest {
+  id         String   @id @default(uuid())
+  provider   String
+  model      String
+  tokens_in  Int
+  tokens_out Int
+  latency    Int
+  status     String
+  createdAt  DateTime @default(now())
+}
+
+model EvaluationRun {
+  id            String   @id @default(uuid())
+  timestamp     DateTime @default(now())
+  scenario      String
+  overall_score Float
+
+  evaluations Evaluation[]
+}
+
+model Evaluation {
+  id      String   @id @default(uuid())
+  runId   String
+  task    String
+  score   Float
+  details Json
+
+  run EvaluationRun @relation(fields: [runId], references: [id])
+}

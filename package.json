@@ -10,7 +10,8 @@
     "test": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "postinstall": "prisma skills sync || exit 0"
   },
   "engines": {
     "node": ">=20.0.0",
@@ -18,12 +19,20 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
+    "@types/node": "^26.4.0",
     "prettier": "^3.9.6",
+    "prisma": "^5.22.0",
     "tsx": "^4.23.12",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
   },
   "dependencies": {
+    "@ai-sdk/groq": "^4.0.33",
+    "@ai-sdk/openai": "^4.0.50",
+    "@prisma/client": "^5.22.0",
+    "ai": "^7.0.83",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "zod": "^4.4.3"
   }
 }

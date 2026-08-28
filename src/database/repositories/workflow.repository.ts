@@ -1,9 +1,11 @@
 import { prisma } from '../prisma/prisma';
 import { WorkflowRepository, WorkflowInstanceData } from '../../agent/workflows/repository';
+import { StaleWorkflowWorkerError } from '../../agent/workflows/errors';
 
 export class PrismaWorkflowRepository implements WorkflowRepository {
-  async create(data: Omit<WorkflowInstanceData, 'version' | 'id'> & { id?: string }): Promise<WorkflowInstanceData> {
-    const created = await prisma.workflowInstance.create({
+  async create(data: Omit<WorkflowInstanceData, 'version' | 'id'> & { id?: string }, tx?: any): Promise<WorkflowInstanceData> {
+    const client = tx || prisma;
+    const created = await client.workflowInstance.create({
       data: {
         id: data.id,
         workflowId: data.workflowId,
@@ -22,8 +24,9 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
     };
   }
 
-  async load(id: string): Promise<WorkflowInstanceData | null> {
-    const instance = await prisma.workflowInstance.findUnique({
+  async load(id: string, tx?: any): Promise<WorkflowInstanceData | null> {
+    const client = tx || prisma;
+    const instance = await client.workflowInstance.findUnique({
       where: { id }
     });
 
@@ -40,8 +43,9 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
     };
   }
 
-  async saveTransition(id: string, expectedVersion: number, newState: string): Promise<WorkflowInstanceData> {
-    const result = await prisma.workflowInstance.updateMany({
+  async saveTransition(id: string, expectedVersion: number, newState: string, tx?: any): Promise<WorkflowInstanceData> {
+    const client = tx || prisma;
+    const result = await client.workflowInstance.updateMany({
       where: { 
         id, 
         version: expectedVersion 
@@ -53,10 +57,10 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
     });
 
     if (result.count === 0) {
-      throw new Error(`Optimistic concurrency conflict or instance not found: Workflow ${id} at version ${expectedVersion}`);
+      throw new StaleWorkflowWorkerError('', id, expectedVersion);
     }
 
-    const updated = await this.load(id);
+    const updated = await this.load(id, client);
     if (!updated) {
       throw new Error(`Workflow instance ${id} missing after successful transition`);
     }

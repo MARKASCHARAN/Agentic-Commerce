@@ -10,6 +10,8 @@ import {
   PaymentUnknownError,
   PaymentProviderTimeoutError
 } from '../../agent/payments';
+import { WebhookEvent } from '../../agent/payments/webhook';
+import { RazorpayWebhookAdapter } from './razorpay.webhook';
 
 export class RazorpayProvider implements PaymentProvider {
   private razorpay: Razorpay;
@@ -65,10 +67,17 @@ export class RazorpayProvider implements PaymentProvider {
   }
 
   async capturePayment(request: CaptureRequest, idempotencyKey?: string): Promise<ProviderResult<PaymentIntent>> {
-    
     try {
+      const params: any = {
+        amount: request.amount,
+        currency: request.currency
+      };
       
-      const payment = await this.razorpay.payments.capture(request.paymentId, request.amount, request.currency);
+      if (idempotencyKey) {
+        params.notes = { idempotency_key: idempotencyKey };
+      }
+
+      const payment = await this.razorpay.payments.capture(request.paymentId, params.amount, request.currency);
       
       return {
         success: true,
@@ -87,15 +96,16 @@ export class RazorpayProvider implements PaymentProvider {
   }
 
   async refundPayment(request: RefundRequest, idempotencyKey?: string): Promise<ProviderResult<PaymentIntent>> {
-    
     try {
       const params: any = {};
       if (request.amount) params.amount = request.amount;
       if (request.receipt) params.receipt = request.receipt;
-      if (request.reason) params.notes = { reason: request.reason };
+      
+      params.notes = {};
+      if (request.reason) params.notes.reason = request.reason;
+      if (idempotencyKey) params.notes.idempotency_key = idempotencyKey;
 
       const refund = await this.razorpay.payments.refund(request.paymentId, params);
-
       const payment = await this.razorpay.payments.fetch(request.paymentId);
 
       return {
@@ -114,24 +124,16 @@ export class RazorpayProvider implements PaymentProvider {
     }
   }
 
-  async reconcileWebhook(payload: any, signature: string, secret: string): Promise<ProviderResult<WebhookPayload>> {
+  async reconcileWebhook(payload: any, signature: string, secret: string): Promise<ProviderResult<WebhookEvent>> {
     try {
-      const crypto = require('crypto');
-      const expectedSignature = crypto.createHmac('sha256', secret).update(JSON.stringify(payload)).digest('hex');
+      const adapter = new RazorpayWebhookAdapter(secret);
+      const rawBody = typeof payload === 'string' ? payload : JSON.stringify(payload);
       
-      if (expectedSignature !== signature) {
-        throw new PaymentProviderError('Invalid webhook signature');
-      }
+      const event = adapter.parse(rawBody, signature);
 
       return {
         success: true,
-        data: {
-          eventId: payload.id || 'unknown',
-          eventType: payload.event || 'unknown',
-          resourceId: payload.payload?.payment?.entity?.id || 'unknown',
-          signature,
-          payload
-        }
+        data: event
       };
     } catch (error) {
       throw this.mapError(error);

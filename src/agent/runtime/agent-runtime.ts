@@ -64,6 +64,25 @@ export class AgentRuntime {
 
       const context = await this.deps.stateManager.loadContext(identity, task);
 
+      if (this.deps.revenueEngine) {
+
+        const merchantId = context.scopedData?.merchantId || identity.userId;
+        
+        if (merchantId) {
+          const revenueOpportunity = await this.deps.revenueEngine.analyze(merchantId, {
+            sessionId: identity.sessionId,
+            ...context.scopedData 
+          });
+          
+          if (revenueOpportunity) {
+            if (this.deps.revenueTracker) {
+              await this.deps.revenueTracker.logProposal(revenueOpportunity);
+            }
+            context.runtimeMetadata.revenueOpportunity = revenueOpportunity;
+          }
+        }
+      }
+
       const modelRes = await this.deps.modelGateway.structured({
         prompt: `Task: ${context.task}\nMetadata: ${JSON.stringify(context.runtimeMetadata)}\nConversation: ${JSON.stringify(context.conversation)}`,
         schema: RuntimeActionSchema,

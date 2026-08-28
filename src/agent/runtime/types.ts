@@ -118,6 +118,9 @@ export interface AgentEventEmitter {
   emit(event: string, payload: any): void;
 }
 
+import { RevenueIntelligenceEngine } from '../intelligence/revenue-engine';
+import { RevenueTracker } from '../intelligence/revenue-tracker';
+
 export interface AgentRuntimeDependencies {
   modelGateway: ModelGateway;
   stateManager: StateManager;
@@ -125,4 +128,6 @@ export interface AgentRuntimeDependencies {
   skillSelector: SkillSelector;
   skillRegistry?: SkillRegistry;
   eventEmitter: AgentEventEmitter;
+  revenueEngine?: RevenueIntelligenceEngine;
+  revenueTracker?: RevenueTracker;
 }

@@ -75,6 +75,7 @@ model Session {
   user             User?            @relation(fields: [userId], references: [id])
   skill_executions SkillExecution[]
   tool_calls       ToolCall[]
+  revenue_logs     RevenueOpportunityLog[]
 }
 
 model Message {
@@ -288,4 +289,39 @@ model WebhookEvent {
   processedAt     DateTime @default(now())
 
   @@unique([provider, providerEventId])
+}
+
+model OutboxEvent {
+  id               String   @id @default(uuid())
+  eventId          String   @unique
+  eventType        String
+  aggregateType    String
+  aggregateId      String
+  correlationId    String?
+  payload          Json
+  status           String   @default("PENDING")
+  attempts         Int      @default(0)
+  availableAt      DateTime @default(now())
+  processedAt      DateTime?
+  lastError        Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model RevenueOpportunityLog {
+  id                  String   @id @default(uuid())
+  merchantId          String
+  sessionId           String
+  buyerId             String?
+  opportunityType     String   
+  expectedImpactMinor Int
+  realizedImpactMinor Int      @default(0)
+  status              String   
+  orderId             String?  
+  paymentIntentId     String?  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  convertedAt         DateTime?
+  
+  session             Session  @relation(fields: [sessionId], references: [id])
 }

@@ -10,6 +10,7 @@ export interface SkillMetadata {
   name: string;
   description: string;
   version: string;
+  requiredCapabilities?: string[];
 }
 
 export interface SkillExecutionContext extends ExecutionIdentity {
@@ -30,6 +31,9 @@ export interface SkillWorkflowRequirement {
 }
 
 export interface LoadedSkillDefinition {
+  name: string;
+  description: string;
+  requiredCapabilities: string[];
   instructions: string;
   sourcePath: string;
 }

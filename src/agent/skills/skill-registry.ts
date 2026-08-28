@@ -1,4 +1,5 @@
 import { Skill, SkillId, SkillMetadata } from './types';
+import { z } from 'zod';
 import {
   SkillAlreadyRegisteredError,
   SkillNotFoundError,
@@ -23,6 +24,27 @@ export class SkillRegistry {
     if (skill.workflow) Object.freeze(skill.workflow);
 
     this.skills.set(skill.metadata.id, skill);
+  }
+
+  async discoverAndRegister(rootDir: string, loader: import('./skill-loader').SkillLoader): Promise<void> {
+    const discoveredPaths = await loader.discover(rootDir);
+    for (const p of discoveredPaths) {
+      const def = await loader.loadFromFile(p);
+      this.register({
+        metadata: {
+          id: def.name as SkillId,
+          name: def.name,
+          description: def.description,
+          version: '1.0',
+          requiredCapabilities: def.requiredCapabilities
+        },
+        inputSchema: z.any(),
+        outputSchema: z.any(),
+        instructions: def.instructions,
+        sourcePath: def.sourcePath,
+        execute: async () => { throw new Error('Dynamic skills must be routed by AgentRuntime to deterministic owners'); }
+      });
+    }
   }
 
   unregister(skillId: string): void {

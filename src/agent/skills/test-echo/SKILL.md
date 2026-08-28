@@ -1,3 +1,9 @@
+---
+name: test-echo
+description: Returns the supplied message unchanged.
+requiredCapabilities: []
+---
+
 # Echo
 
 ## Description

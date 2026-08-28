@@ -3,6 +3,50 @@ import * as path from 'path';
 import { SkillFileNotFoundError, SkillDefinitionError } from './errors';
 import { LoadedSkillDefinition } from './types';
 
+function parseFrontmatter(content: string): { metadata: any, instructions: string } {
+  const frontmatterRegex = /^---\s*\n([\s\S]*?)\n---\s*\n/;
+  const match = content.match(frontmatterRegex);
+  
+  if (!match) {
+    throw new SkillDefinitionError('Missing or malformed frontmatter in SKILL.md');
+  }
+
+  const frontmatterRaw = match[1];
+  const instructions = content.slice(match[0].length).trim();
+  
+  const metadata: any = {};
+  const lines = frontmatterRaw.split('\n');
+  let currentKey = '';
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    
+    if (trimmed.startsWith('- ')) {
+      if (currentKey) {
+        if (!Array.isArray(metadata[currentKey])) {
+           metadata[currentKey] = [];
+        }
+        metadata[currentKey].push(trimmed.slice(2).trim());
+      }
+    } else {
+      const colonIndex = line.indexOf(':');
+      if (colonIndex !== -1) {
+        const key = line.slice(0, colonIndex).trim();
+        const value = line.slice(colonIndex + 1).trim();
+        currentKey = key;
+        if (value) {
+          metadata[key] = value;
+        } else {
+          metadata[key] = [];
+        }
+      }
+    }
+  }
+  
+  return { metadata, instructions };
+}
+
 export class SkillLoader {
   constructor(private readonly rootDir: string) {}
 
@@ -26,8 +70,20 @@ export class SkillLoader {
         throw new SkillDefinitionError(`Skill definition is empty: ${safePath}`);
       }
       
+      const parsed = parseFrontmatter(content);
+      if (!parsed.metadata.name || !parsed.metadata.description) {
+        throw new SkillDefinitionError(`Missing required metadata (name, description) in SKILL.md: ${safePath}`);
+      }
+
+      const requiredCapabilities = Array.isArray(parsed.metadata.requiredCapabilities) 
+        ? parsed.metadata.requiredCapabilities 
+        : [];
+
       return {
-        instructions: content,
+        name: parsed.metadata.name,
+        description: parsed.metadata.description,
+        requiredCapabilities,
+        instructions: parsed.instructions,
         sourcePath: safePath
       };
     } catch (error: any) {

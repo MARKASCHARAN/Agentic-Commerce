@@ -1,31 +1,21 @@
 import { ToolAdapter, ToolAdapterContext, ToolAdapterType } from '../types';
 import { RESTToolAdapterOptions } from './types';
-import { 
-  RESTConnectionError, 
-  RESTProtocolError, 
-  RESTResponseError, 
-  RESTToolAdapterError 
+import {
+  RESTConnectionError,
+  RESTProtocolError,
+  RESTResponseError,
+  RESTToolAdapterError
 } from './errors';
 
-/**
- * Executes tools through a configured HTTP REST endpoint.
- * 
- * Request URLs are derived from static adapter configuration and
- * validated inputs; the model cannot provide arbitrary URLs.
- */
+// Model-generated URLs are never accepted here; the endpoint is fixed by Tool configuration to prevent SSRF.
 export class RESTToolAdapter<Input = unknown, Output = unknown> implements ToolAdapter<Input, Output> {
   public readonly type: ToolAdapterType = 'rest';
 
   constructor(
     private readonly options: RESTToolAdapterOptions<Input, Output>
-  ) {}
+  ) { }
 
-  /**
-   * Executes the tool using the configured REST request mapping.
-   * 
-   * @throws {RESTToolAdapterError} If request execution fails.
-   * @throws {RESTConnectionError} If the target cannot be reached.
-   */
+
   async execute(input: Input, context: ToolAdapterContext): Promise<Output> {
     if (context.abortSignal?.aborted) {
       throw context.abortSignal.reason || new RESTToolAdapterError('Execution aborted before start');
@@ -71,14 +61,11 @@ export class RESTToolAdapter<Input = unknown, Output = unknown> implements ToolA
     }
   }
 
-  /**
-   * Constructs and validates the request URL.
-   * The resulting URL must remain within the configured origin.
-   */
+  // The resulting URL must remain within the configured origin to prevent SSRF.
   private constructUrl(path: string, query?: Record<string, string | number | boolean>): URL {
     const normalizedBaseUrl = this.options.baseUrl.replace(/\/$/, '');
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-    
+
     let url: URL;
     try {
       url = new URL(`${normalizedBaseUrl}${normalizedPath}`);
@@ -97,10 +84,7 @@ export class RESTToolAdapter<Input = unknown, Output = unknown> implements ToolA
     return url;
   }
 
-  /**
-   * Merges default and request-specific headers.
-   * Request-specific values take precedence.
-   */
+
   private constructHeaders(dynamicHeaders?: Record<string, string>): Headers {
     const headers = new Headers();
 
@@ -119,10 +103,7 @@ export class RESTToolAdapter<Input = unknown, Output = unknown> implements ToolA
     return headers;
   }
 
-  /**
-   * Serializes object payloads as JSON and sets Content-Type when needed.
-   * Existing BodyInit-compatible values are passed through unchanged.
-   */
+
   private constructBody(bodyData: unknown, headers: Headers): BodyInit | null {
     if (bodyData === undefined || bodyData === null) {
       return null;
@@ -138,10 +119,7 @@ export class RESTToolAdapter<Input = unknown, Output = unknown> implements ToolA
     return bodyData as BodyInit;
   }
 
-  /**
-   * Converts a non-2xx response into a deterministic RESTResponseError.
-   * Preserves the HTTP status and response body for diagnostics.
-   */
+
   private async handleErrorResponse(response: Response): Promise<never> {
     let bodyText: string | undefined;
     try {
@@ -167,10 +145,7 @@ export class RESTToolAdapter<Input = unknown, Output = unknown> implements ToolA
     throw new RESTResponseError(response.status, response.statusText, message, bodyText);
   }
 
-  /**
-   * Transforms a successful REST response into the configured output type.
-   * Uses responseMapping when provided; otherwise parses JSON responses.
-   */
+
   private async transformResponse(response: Response): Promise<Output> {
     if (this.options.responseMapping) {
       return this.options.responseMapping(response);

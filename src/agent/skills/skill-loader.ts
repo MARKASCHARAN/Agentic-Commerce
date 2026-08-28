@@ -6,9 +6,7 @@ import { LoadedSkillDefinition } from './types';
 export class SkillLoader {
   constructor(private readonly rootDir: string) {}
 
-  /**
-   * Ensures the requested path doesn't escape the root directory (path traversal).
-   */
+  // Prevents escaping the root directory (path traversal).
   private validatePath(targetPath: string): string {
     const resolvedPath = path.resolve(targetPath);
     const resolvedRoot = path.resolve(this.rootDir);
@@ -19,12 +17,7 @@ export class SkillLoader {
     return resolvedPath;
   }
 
-  /**
-   * Loads a specific SKILL.md file by its direct path.
-   * 
-   * @param skillFile Absolute or relative path to the SKILL.md file.
-   * @returns The loaded definition containing instructions and source path.
-   */
+
   async loadFromFile(skillFile: string): Promise<LoadedSkillDefinition> {
     const safePath = this.validatePath(skillFile);
     
@@ -50,23 +43,13 @@ export class SkillLoader {
     }
   }
 
-  /**
-   * Loads a SKILL.md from a specific skill directory.
-   * 
-   * @param skillDirectory Directory containing the SKILL.md file.
-   * @returns The loaded definition.
-   */
+
   async load(skillDirectory: string): Promise<LoadedSkillDefinition> {
     const skillFile = path.join(skillDirectory, 'SKILL.md');
     return this.loadFromFile(skillFile);
   }
 
-  /**
-   * Discovers all SKILL.md files within a root directory (one level deep).
-   * 
-   * @param searchDir The root directory containing skill subdirectories.
-   * @returns An array of absolute paths to discovered SKILL.md files.
-   */
+
   async discover(searchDir: string): Promise<string[]> {
     const safeDir = this.validatePath(searchDir);
     const results: string[] = [];

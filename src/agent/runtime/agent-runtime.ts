@@ -11,20 +11,11 @@ import {
 } from './types';
 import { SkillNotFoundError, SkillValidationError } from '../skills/errors';
 
-/**
- * Core runtime that executes a single turn of an agentic workflow.
- */
+// Core runtime that executes a single turn of an agentic workflow.
 export class AgentRuntime {
   constructor(private readonly deps: AgentRuntimeDependencies) {}
 
-  /**
-   * Executes a single turn of the agent lifecycle.
-   * 
-   * @param identity - The execution identity containing session and execution IDs.
-   * @param task - The initial task or prompt for the agent turn.
-   * @param options - Optional execution parameters including timeouts, abort signals, and token budgets.
-   * @returns A promise that resolves to the result of the turn.
-   */
+
   async execute(identity: ExecutionIdentity, task: string, options?: ExecutionOptions): Promise<TurnResult> {
     const startedAt = new Date();
     let deadline: Date | undefined;
@@ -155,14 +146,7 @@ export class AgentRuntime {
     this.deps.eventEmitter.emit('STATE_CHANGED', { identity, state });
   }
 
-  /**
-   * Executes a specific skill by resolving it from the SkillRegistry.
-   * Handles input/output validation and emits appropriate lifecycle events.
-   * 
-   * @param identity - The execution identity.
-   * @param request - The skill execution request containing the skillId and input.
-   * @returns A promise resolving to the typed skill execution result.
-   */
+
   async executeSkill<Input = unknown, Output = unknown>(
     identity: ExecutionIdentity,
     request: SkillExecutionRequest<Input>

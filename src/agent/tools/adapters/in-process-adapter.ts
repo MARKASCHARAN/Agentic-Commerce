@@ -1,12 +1,7 @@
 import { ToolAdapter, ToolAdapterContext, ToolAdapterType } from './types';
 import { ToolAdapterError } from './errors';
 
-/**
- * An adapter for executing tools synchronously/asynchronously within the same Node.js process.
- * 
- * Useful for pure computational tools or internal test tools where the transport
- * is essentially just a direct function invocation.
- */
+// Executes tools synchronously/asynchronously within the same Node.js process.
 export class InProcessToolAdapter<Input = unknown, Output = unknown> implements ToolAdapter<Input, Output> {
   public readonly type: ToolAdapterType = 'in-process';
 

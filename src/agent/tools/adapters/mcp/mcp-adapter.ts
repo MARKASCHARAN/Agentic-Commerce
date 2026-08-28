@@ -8,11 +8,7 @@ import {
 import { MCPToolAdapterOptions } from './types';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
-/**
- * Executes tools over the Model Context Protocol (MCP).
- * 
- * Maps a generic Tool to a specific MCP server tool using the official MCP SDK.
- */
+// Maps a generic Tool to a specific MCP server tool using the official SDK.
 export class MCPToolAdapter<Input = unknown, Output = unknown> implements ToolAdapter<Input, Output> {
   public readonly type: ToolAdapterType = 'mcp';
 
@@ -22,13 +18,7 @@ export class MCPToolAdapter<Input = unknown, Output = unknown> implements ToolAd
     }
   ) {}
 
-  /**
-   * Executes the MCP tool implementation via the configured SDK client.
-   * 
-   * @throws {MCPToolAdapterError} If execution aborts prematurely or an unknown error occurs.
-   * @throws {MCPConnectionError} If the client fails to communicate with the MCP server.
-   * @throws {MCPInvocationError} If the tool invocation explicitly fails.
-   */
+
   async execute(input: Input, context: ToolAdapterContext): Promise<Output> {
     if (context.abortSignal?.aborted) {
       throw context.abortSignal.reason || new MCPToolAdapterError('Execution aborted before start');
@@ -67,10 +57,7 @@ export class MCPToolAdapter<Input = unknown, Output = unknown> implements ToolAd
     }
   }
 
-  /**
-   * Transforms the raw MCP CallToolResult into the configured output type.
-   * Uses responseTransformer if provided; otherwise extracts text content natively.
-   */
+
   private transformResponse(result: any): Output {
     if (this.options.responseTransformer) {
       return this.options.responseTransformer(result);

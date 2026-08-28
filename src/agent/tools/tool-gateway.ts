@@ -1,16 +1,19 @@
 import { ToolRegistry } from './tool-registry';
 import { ToolExecutionRequest, ToolExecutionResult } from './types';
 import { ToolValidationError, ToolExecutionError, ToolNotFoundError } from './errors';
+import { PolicyEngine } from '../policy/policy-engine';
+import { PolicyAuthorizationError, PolicyApprovalRequiredError } from '../policy/errors';
 
 export interface ToolGatewayDependencies {
   toolRegistry: ToolRegistry;
   eventEmitter: {
     emit(event: string, payload: any): void;
   };
+  policyEngine: PolicyEngine;
 }
 
 export class ToolGateway {
-  constructor(private readonly deps: ToolGatewayDependencies) {}
+  constructor(private readonly deps: ToolGatewayDependencies) { }
 
   /**
    * Helper to emit strictly typed tool lifecycle events to the runtime's event publisher.
@@ -30,9 +33,9 @@ export class ToolGateway {
   ): Promise<ToolExecutionResult<Output>> {
     const { toolId, input, context, timeoutMs } = request;
     const { executionId, agentId, sessionId, abortSignal } = context;
-    
+
     // Resolve tool
-    const tool = this.deps.toolRegistry.get(toolId); 
+    const tool = this.deps.toolRegistry.get(toolId);
 
     if (abortSignal?.aborted) {
       throw abortSignal.reason || new Error(`Tool execution cancelled before starting: ${toolId}`);
@@ -80,6 +83,37 @@ export class ToolGateway {
         throw abortController.signal.reason || new Error(`Execution cancelled before running tool ${toolId}`);
       }
 
+      // Execute Policy Check
+      if (!tool.policy?.id) {
+        throw new PolicyAuthorizationError('system.fail_closed', `Tool ${toolId} must declare a policy to execute.`);
+      }
+
+      this.deps.eventEmitter.emit('POLICY_CHECK_STARTED', { ...eventPayloadBase, policyId: tool.policy.id });
+
+      const policyDecision = await this.deps.policyEngine.evaluate(
+        tool.policy.id,
+        validatedInput,
+        { agentId, sessionId, executionId }
+      );
+
+      this.deps.eventEmitter.emit('POLICY_CHECK_COMPLETED', {
+        ...eventPayloadBase,
+        policyId: tool.policy.id,
+        decision: policyDecision
+      });
+
+      if (policyDecision.result === 'DENY') {
+        throw new PolicyAuthorizationError(tool.policy.id, policyDecision.reason || 'Policy explicitly denied execution');
+      }
+
+      if (policyDecision.result === 'REQUIRE_APPROVAL') {
+        throw new PolicyApprovalRequiredError(tool.policy.id, policyDecision.requiredApprovals || [], policyDecision.reason);
+      }
+
+      if (abortController.signal.aborted) {
+        throw abortController.signal.reason || new Error(`Execution cancelled after policy check for tool ${toolId}`);
+      }
+
       // Execute Tool via Adapter
       const rawOutput = await tool.adapter.execute(validatedInput, toolContext);
 
@@ -104,12 +138,17 @@ export class ToolGateway {
 
     } catch (error: any) {
       this.deps.eventEmitter.emit('TOOL_FAILED', { ...eventPayloadBase, error });
-      
-      // Preserve ToolValidationError and ToolNotFoundError
-      if (error instanceof ToolValidationError || error instanceof ToolNotFoundError) {
+
+      // Preserve validation and policy errors
+      if (
+        error instanceof ToolValidationError ||
+        error instanceof ToolNotFoundError ||
+        error instanceof PolicyAuthorizationError ||
+        error instanceof PolicyApprovalRequiredError
+      ) {
         throw error;
       }
-      
+
       // If it's a cancellation or timeout, throw it transparently or wrap it
       if (error.name === 'AbortError' || error.message?.includes('timed out') || error.message?.includes('cancelled')) {
         throw error;

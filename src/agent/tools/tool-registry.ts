@@ -5,21 +5,11 @@ import {
   ToolValidationError 
 } from './errors';
 
-/**
- * A deterministic registry that manages discovery and lookup for all Tools.
- * The registry acts as the source of truth for available operations.
- */
+// A deterministic registry that manages discovery and lookup for all Tools.
 export class ToolRegistry {
   private readonly tools = new Map<ToolId, Tool<unknown, unknown>>();
 
-  /**
-   * Registers a tool in the registry.
-   * Rejects invalid tools and duplicate IDs.
-   * 
-   * @param tool - The tool to register.
-   * @throws {ToolValidationError} If the tool definition is invalid.
-   * @throws {ToolAlreadyRegisteredError} If the tool ID is already registered.
-   */
+
   register(tool: Tool<unknown, unknown>): void {
     this.validateTool(tool);
 
@@ -30,22 +20,12 @@ export class ToolRegistry {
     this.tools.set(tool.metadata.id, tool);
   }
 
-  /**
-   * Unregisters a tool by ID.
-   * 
-   * @param toolId - The ID of the tool to remove.
-   */
+
   unregister(toolId: string): void {
     this.tools.delete(toolId as ToolId);
   }
 
-  /**
-   * Retrieves a tool by ID.
-   * 
-   * @param toolId - The ID of the tool to fetch.
-   * @returns The requested tool.
-   * @throws {ToolNotFoundError} If the tool does not exist.
-   */
+
   get(toolId: string): Tool<unknown, unknown> {
     const tool = this.tools.get(toolId as ToolId);
     if (!tool) {
@@ -54,22 +34,12 @@ export class ToolRegistry {
     return tool;
   }
 
-  /**
-   * Checks if a tool exists in the registry.
-   * 
-   * @param toolId - The ID of the tool to check.
-   * @returns True if the tool exists, false otherwise.
-   */
+
   has(toolId: string): boolean {
     return this.tools.has(toolId as ToolId);
   }
 
-  /**
-   * Returns a read-only list of all registered tool metadata.
-   * This encapsulates the internal Map to prevent external mutation.
-   * 
-   * @returns An array of tool metadata.
-   */
+  // Returns a read-only list of all registered tool metadata.
   list(): ToolMetadata[] {
     return Array.from(this.tools.values()).map(tool => ({ ...tool.metadata }));
   }

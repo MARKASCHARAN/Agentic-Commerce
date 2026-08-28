@@ -2,20 +2,11 @@ import { AgentRuntime } from '../runtime/agent-runtime';
 import { ExecutionIdentity, TurnResult } from '../runtime/types';
 import { OrchestratorOptions } from './types';
 
-/**
- * Coordinates multi-turn agent execution loops.
- */
+// Coordinates multi-turn agent execution loops.
 export class AgentOrchestrator {
   constructor(private readonly runtime: AgentRuntime) {}
 
-  /**
-   * Orchestrates a multi-turn execution loop over the AgentRuntime.
-   * 
-   * @param identity - The execution identity containing session and execution IDs.
-   * @param initialTask - The initial task or prompt to begin the orchestration.
-   * @param options - Optional orchestration parameters, including max turns and budget.
-   * @returns A promise that resolves to the final turn result.
-   */
+
   async execute(identity: ExecutionIdentity, initialTask: string, options?: OrchestratorOptions): Promise<TurnResult> {
     const maxTurns = options?.maxTurns ?? 5;
     let turnCount = 0;

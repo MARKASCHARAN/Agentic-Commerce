@@ -51,7 +51,7 @@ export interface ToolExecutionResult<Output = unknown> {
  */
 export interface Tool<Input = unknown, Output = unknown> {
   metadata: ToolMetadata;
-  
+
   inputSchema: z.ZodType<Input>;
   outputSchema: z.ZodType<Output>;
 
@@ -63,4 +63,8 @@ export interface Tool<Input = unknown, Output = unknown> {
    * @type {ToolAdapter<Input, Output>}
    */
   adapter: ToolAdapter<Input, Output>;
+
+  policy?: {
+    id: string;
+  };
 }

@@ -1,24 +1,28 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { z } from 'zod';
-import { 
-  ToolRegistry, 
+import {
+  ToolRegistry,
   ToolGateway,
-  Tool, 
-  ToolId, 
+  Tool,
+  ToolId,
   ToolNotFoundError,
   ToolValidationError,
   ToolExecutionContext,
   ToolExecutionError,
   InProcessToolAdapter
 } from '../../src/agent/tools';
+import { PolicyEngine } from '../../src/agent/policy/policy-engine';
+import { PolicyAuthorizationError, PolicyApprovalRequiredError } from '../../src/agent/policy/errors';
+
 
 describe('ToolGateway', () => {
   let registry: ToolRegistry;
   let eventEmitter: { emit: ReturnType<typeof vi.fn> };
+  let policyEngine: { evaluate: ReturnType<typeof vi.fn> };
   let gateway: ToolGateway;
 
   const createTestTool = (
-    id: string, 
+    id: string,
     executeFn: (input: any, context: ToolExecutionContext) => Promise<any>,
     inputSchema: z.ZodType<any> = z.object({ value: z.string() }),
     outputSchema: z.ZodType<any> = z.object({ result: z.string() })
@@ -31,15 +35,18 @@ describe('ToolGateway', () => {
     },
     inputSchema,
     outputSchema,
-    adapter: new InProcessToolAdapter(executeFn)
+    adapter: new InProcessToolAdapter(executeFn),
+    policy: { id: 'system.allow_all' }
   });
 
   beforeEach(() => {
     registry = new ToolRegistry();
     eventEmitter = { emit: vi.fn() };
+    policyEngine = { evaluate: vi.fn().mockResolvedValue({ result: 'ALLOW' }) };
     gateway = new ToolGateway({
       toolRegistry: registry,
-      eventEmitter
+      eventEmitter,
+      policyEngine: policyEngine as unknown as PolicyEngine
     });
   });
 
@@ -64,7 +71,7 @@ describe('ToolGateway', () => {
     expect(result.output).toEqual({ result: 'echoed value' });
 
     expect(executeSpy).toHaveBeenCalledWith(
-      { value: 'value' }, 
+      { value: 'value' },
       expect.objectContaining({
         executionId: 'exec-1',
         agentId: 'agent-1',
@@ -150,7 +157,7 @@ describe('ToolGateway', () => {
     registry.register(tool);
 
     const controller = new AbortController();
-    
+
     const promise = gateway.execute({
       toolId: 'test.aborted-mid',
       input: { value: 'test' },
@@ -204,7 +211,7 @@ describe('ToolGateway', () => {
       expect(error.message).toContain('Tool execution failed: [in-process adapter] Some internal db issue');
       expect(error.cause).toBeDefined(); // The original error is preserved
     }
-    
+
     expect(eventEmitter.emit).toHaveBeenCalledWith('TOOL_FAILED', expect.anything());
   });
 
@@ -212,7 +219,7 @@ describe('ToolGateway', () => {
     // Verify two different tools don't interfere with each other
     const executeA = vi.fn().mockResolvedValue({ result: 'A' });
     const executeB = vi.fn().mockResolvedValue({ result: 'B' });
-    
+
     registry.register(createTestTool('test.a', executeA));
     registry.register(createTestTool('test.b', executeB));
 
@@ -221,5 +228,53 @@ describe('ToolGateway', () => {
 
     expect(resA.output.result).toBe('A');
     expect(resB.output.result).toBe('B');
+  });
+
+  it('should fail-closed if a tool does not declare a policy', async () => {
+    const executeSpy = vi.fn().mockResolvedValue({ result: 'ignored' });
+    const tool = createTestTool('test.no-policy', executeSpy);
+    delete tool.policy; // Remove policy
+    registry.register(tool);
+
+    await expect(gateway.execute({
+      toolId: 'test.no-policy',
+      input: { value: 'test' },
+      context: baseContext
+    })).rejects.toThrowError(PolicyAuthorizationError);
+
+    expect(executeSpy).not.toHaveBeenCalled();
+    expect(eventEmitter.emit).toHaveBeenCalledWith('TOOL_FAILED', expect.anything());
+  });
+
+  it('should reject execution if policy evaluates to DENY', async () => {
+    policyEngine.evaluate.mockResolvedValueOnce({ result: 'DENY', reason: 'Blocked by rule' });
+    
+    const executeSpy = vi.fn().mockResolvedValue({ result: 'ignored' });
+    const tool = createTestTool('test.deny', executeSpy);
+    registry.register(tool);
+
+    await expect(gateway.execute({
+      toolId: 'test.deny',
+      input: { value: 'test' },
+      context: baseContext
+    })).rejects.toThrowError(PolicyAuthorizationError);
+
+    expect(executeSpy).not.toHaveBeenCalled();
+  });
+
+  it('should reject execution if policy evaluates to REQUIRE_APPROVAL', async () => {
+    policyEngine.evaluate.mockResolvedValueOnce({ result: 'REQUIRE_APPROVAL', requiredApprovals: ['manager'] });
+    
+    const executeSpy = vi.fn().mockResolvedValue({ result: 'ignored' });
+    const tool = createTestTool('test.approval', executeSpy);
+    registry.register(tool);
+
+    await expect(gateway.execute({
+      toolId: 'test.approval',
+      input: { value: 'test' },
+      context: baseContext
+    })).rejects.toThrowError(PolicyApprovalRequiredError);
+
+    expect(executeSpy).not.toHaveBeenCalled();
   });
 });

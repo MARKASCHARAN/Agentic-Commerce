@@ -95,6 +95,10 @@ export class ToolGateway {
 
       this.deps.eventEmitter.emit('POLICY_CHECK_STARTED', { ...eventPayloadBase, policyId: tool.policy.id });
 
+      // [FINANCIAL SAFETY]
+      // Acts as an absolute firewall between probabilistic LLM intent and deterministic execution.
+      // We validate cryptographic capabilities and merchant-defined constraints strictly before
+      // any external API is touched, preventing prompt-injection from moving money.
       const policyDecision = await this.deps.policyEngine.evaluate(
         tool.policy.id,
         validatedInput,

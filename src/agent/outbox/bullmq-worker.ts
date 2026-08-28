@@ -77,6 +77,10 @@ export class BullMQOutboxWorker {
     try {
       await handler(event);
     } catch (err: any) {
+      // [STATE MACHINE] [DURABILITY]
+      // Errors are strictly classified to prevent double-spends. 
+      // TRANSIENT errors retry, but UNKNOWN errors (like TCP drops) halt the queue.
+      // Halting prevents a blind retry from executing a payment that the provider already processed.
       const failureClass = classifyError(err);
       
       const observabilityData = {

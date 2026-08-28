@@ -26,6 +26,10 @@ export class ReconciliationEngine {
   public async processWebhook(event: WebhookEvent): Promise<ReconciliationResult> {
     let emitPayload: { idempotencyKey: string; status: string } | null = null;
 
+    // [STATE MACHINE] [DURABILITY]
+    // Wraps webhook deduplication, state resolution, and outbox event emission in a single ACID transaction.
+    // This prevents "last-webhook-wins" race conditions and ensures out-of-order events 
+    // never corrupt the authoritative payment state or drop downstream analytics events.
     const result = await this.prisma.$transaction(async (tx) => {
       const isNew = await this.webhookRepo.deduplicateAndSave(event, tx);
       if (!isNew) {
@@ -73,6 +77,9 @@ export class ReconciliationEngine {
         }, tx);
       }
 
+      // [DURABILITY]
+      // Emitting to the durable outbox within the same Postgres transaction guarantees 
+      // zero event loss even if the worker crashes before handing off to BullMQ.
       await this.outboxRepo.create(
         {
           eventId: crypto.randomUUID(),

@@ -24,6 +24,10 @@ export class IdempotencyEngine {
     let reservationId: string;
 
     try {
+      // [IDEMPOTENCY] [CONCURRENCY CONTROL]
+      // Relying on PostgreSQL unique constraints (P2002) for at-most-once execution guarantees.
+      // Unlike Redis locks which can expire or suffer from clock drift during GC pauses, 
+      // the RDBMS provides strict ACID durability, eliminating crash-window double spends.
       const record = await this.repo.createReservation(key, scope, fingerprint);
       reservationId = record.id;
     } catch (err: any) {
@@ -72,6 +76,10 @@ export class IdempotencyEngine {
         throw new IdempotencyConflictError(`Operation ${key} previously failed. Use a new idempotency key to retry.`);
 
       case 'UNKNOWN':
+        // [FINANCIAL SAFETY] 
+        // Network timeouts (e.g., ECONNRESET) leave execution state ambiguous.
+        // Blindly retrying could trigger a double-spend if the provider received the request.
+        // We halt retries and force reconciliation via webhook or manual intervention.
         throw new IdempotencyUnknownError(
           `Operation ${key} is in an UNKNOWN state (e.g., previous crash or network timeout). ` +
           `Manual reconciliation or status lookup is required before retrying.`

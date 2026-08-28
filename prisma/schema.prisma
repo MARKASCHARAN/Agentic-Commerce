@@ -278,3 +278,14 @@ model IdempotencyRecord {
 
   @@unique([scope, idempotencyKey])
 }
+
+model WebhookEvent {
+  id              String   @id @default(uuid())
+  provider        String
+  providerEventId String
+  eventType       String
+  payload         Json
+  processedAt     DateTime @default(now())
+
+  @@unique([provider, providerEventId])
+}

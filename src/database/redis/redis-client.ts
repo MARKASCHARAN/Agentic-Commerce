@@ -13,9 +13,7 @@ export class RedisService {
     this.url = options?.url || 'redis://localhost:6379';
   }
 
-  /**
-   * Establishes connection to Redis explicitly.
-   */
+
   async connect(): Promise<void> {
     if (this.client) return;
 
@@ -40,9 +38,7 @@ export class RedisService {
     }
   }
 
-  /**
-   * Gracefully shuts down the connection.
-   */
+
   async disconnect(): Promise<void> {
     if (this.client) {
       try {
@@ -56,9 +52,7 @@ export class RedisService {
     }
   }
 
-  /**
-   * Pings Redis to verify connectivity.
-   */
+
   async ping(): Promise<string> {
     this.ensureConnected();
     try {
@@ -68,9 +62,7 @@ export class RedisService {
     }
   }
 
-  /**
-   * Sets a key-value pair, optionally with a TTL in seconds.
-   */
+
   async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
     this.ensureConnected();
     try {
@@ -84,9 +76,7 @@ export class RedisService {
     }
   }
 
-  /**
-   * Gets a value by key. Returns null if not found.
-   */
+
   async get(key: string): Promise<string | null> {
     this.ensureConnected();
     try {
@@ -96,15 +86,22 @@ export class RedisService {
     }
   }
 
-  /**
-   * Deletes a key.
-   */
+
   async del(key: string): Promise<void> {
     this.ensureConnected();
     try {
       await this.client!.del(key);
     } catch (error) {
       throw new RedisOperationError(`Failed to delete key ${key}`, error);
+    }
+  }
+
+  async eval<T = unknown>(script: string, keys: string[], args: (string | number)[]): Promise<T> {
+    this.ensureConnected();
+    try {
+      return await this.client!.eval(script, keys.length, ...keys, ...args) as T;
+    } catch (error) {
+      throw new RedisOperationError(`Failed to evaluate Lua script`, error);
     }
   }
 

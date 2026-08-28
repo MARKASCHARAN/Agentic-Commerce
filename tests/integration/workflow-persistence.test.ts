@@ -27,10 +27,7 @@ describe('Workflow Persistence & Optimistic Concurrency', () => {
   });
 
   afterAll(async () => {
-    // Cleanup created records using Prisma
-    await prisma.workflowInstance.deleteMany({
-      where: { workflowId: 'wf-persist' }
-    });
+    // We now rely on unique keys generated for each test.
   });
 
   it('should create, persist, transition, and recover state from database', async () => {

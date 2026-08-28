@@ -3,6 +3,8 @@ import { ToolExecutionRequest, ToolExecutionResult } from './types';
 import { ToolValidationError, ToolExecutionError, ToolNotFoundError } from './errors';
 import { PolicyEngine } from '../policy/policy-engine';
 import { PolicyAuthorizationError, PolicyApprovalRequiredError } from '../policy/errors';
+import { RateLimiter, RateLimitConfig } from '../rate-limiting';
+import { IdempotencyEngine } from '../idempotency/engine';
 
 export interface ToolGatewayDependencies {
   toolRegistry: ToolRegistry;
@@ -10,6 +12,9 @@ export interface ToolGatewayDependencies {
     emit(event: string, payload: any): void;
   };
   policyEngine: PolicyEngine;
+  rateLimiter?: RateLimiter;
+  rateLimitConfigMap?: ReadonlyMap<string, RateLimitConfig>;
+  idempotencyEngine?: IdempotencyEngine;
 }
 
 export class ToolGateway {
@@ -83,6 +88,19 @@ export class ToolGateway {
         throw abortController.signal.reason || new Error(`Execution cancelled before running tool ${toolId}`);
       }
 
+      // Execute Rate Limiting
+      if (this.deps.rateLimiter && this.deps.rateLimitConfigMap) {
+        const rateLimitConfig = this.deps.rateLimitConfigMap.get(toolId);
+        if (rateLimitConfig) {
+          await this.deps.rateLimiter.consume([
+            {
+              identity: { type: 'tool', id: toolId },
+              config: rateLimitConfig
+            }
+          ]);
+        }
+      }
+
       // Execute Policy Check
       if (!tool.policy?.id) {
         throw new PolicyAuthorizationError('system.fail_closed', `Tool ${toolId} must declare a policy to execute.`);
@@ -114,8 +132,33 @@ export class ToolGateway {
         throw abortController.signal.reason || new Error(`Execution cancelled after policy check for tool ${toolId}`);
       }
 
-      // Execute Tool via Adapter
-      const rawOutput = await tool.adapter.execute(validatedInput, toolContext);
+      // Execute Tool via Adapter, potentially wrapped in Idempotency
+      const executeAdapter = async () => {
+        return await tool.adapter.execute(validatedInput, toolContext);
+      };
+
+      let rawOutput: any;
+
+      if (tool.idempotency?.required) {
+        if (!this.deps.idempotencyEngine) {
+          throw new ToolExecutionError(`Tool ${toolId} requires idempotency, but IdempotencyEngine is not configured.`);
+        }
+        if (!context.idempotencyKey) {
+          throw new ToolExecutionError(`Tool ${toolId} requires an idempotencyKey in the execution context.`);
+        }
+
+        const scope = tool.idempotency.scope;
+        const key = context.idempotencyKey;
+        
+        rawOutput = await this.deps.idempotencyEngine.execute(
+          key,
+          scope,
+          validatedInput,
+          executeAdapter
+        );
+      } else {
+        rawOutput = await executeAdapter();
+      }
 
       if (abortController.signal.aborted) {
         throw abortController.signal.reason || new Error(`Execution cancelled after running tool ${toolId}`);

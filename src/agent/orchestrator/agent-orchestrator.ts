@@ -1,13 +1,36 @@
 import { AgentRuntime } from '../runtime/agent-runtime';
 import { ExecutionIdentity, TurnResult } from '../runtime/types';
 import { OrchestratorOptions } from './types';
+import { RateLimiter, RateLimiterRequest } from '../rate-limiting';
 
 // Coordinates multi-turn agent execution loops.
 export class AgentOrchestrator {
-  constructor(private readonly runtime: AgentRuntime) {}
+  constructor(
+    private readonly runtime: AgentRuntime,
+    private readonly rateLimiter?: RateLimiter
+  ) {}
 
 
   async execute(identity: ExecutionIdentity, initialTask: string, options?: OrchestratorOptions): Promise<TurnResult> {
+    if (this.rateLimiter && options?.rateLimits) {
+      const rateLimitRequests: RateLimiterRequest[] = [];
+      if (options.rateLimits.agent && identity.agentId) {
+        rateLimitRequests.push({
+          identity: { type: 'agent', id: identity.agentId },
+          config: options.rateLimits.agent
+        });
+      }
+      if (options.rateLimits.session && identity.sessionId) {
+        rateLimitRequests.push({
+          identity: { type: 'session', id: identity.sessionId },
+          config: options.rateLimits.session
+        });
+      }
+      if (rateLimitRequests.length > 0) {
+        await this.rateLimiter.consume(rateLimitRequests);
+      }
+    }
+
     const maxTurns = options?.maxTurns ?? 5;
     let turnCount = 0;
     

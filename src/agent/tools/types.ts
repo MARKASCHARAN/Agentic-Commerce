@@ -25,6 +25,7 @@ export interface ToolMetadata {
  */
 export interface ToolExecutionContext extends ExecutionIdentity {
   abortSignal?: AbortSignal;
+  idempotencyKey?: string;
 }
 
 /**
@@ -66,5 +67,10 @@ export interface Tool<Input = unknown, Output = unknown> {
 
   policy?: {
     id: string;
+  };
+
+  idempotency?: {
+    required: boolean;
+    scope: string;
   };
 }

@@ -1,47 +1,44 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
+  id        String     @id @default(uuid())
+  email     String     @unique
   name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
   merchants Merchant[]
   sessions  Session[]
 }
 
 model Merchant {
-  id          String   @id @default(uuid())
+  id          String          @id @default(uuid())
   userId      String
   name        String
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user   User            @relation(fields: [userId], references: [id])
-  orders CommerceOrder[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  orders      CommerceOrder[]
+  user        User            @relation(fields: [userId], references: [id])
 }
 
 model Agent {
-  id           String   @id @default(uuid())
+  id           String            @id @default(uuid())
   owner        String
   role         String
   publicKey    String?
-  permissions  Json     @default("[]")
-  limits       Json     @default("{}")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  credentials  AgentCredential[]
+  permissions  Json              @default("[]")
+  limits       Json              @default("{}")
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
   capabilities AgentCapability[]
+  credentials  AgentCredential[]
   decisions    PolicyDecision[]
 }
 
@@ -52,8 +49,7 @@ model AgentCredential {
   credentials_hash String
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-
-  agent Agent @relation(fields: [agentId], references: [id])
+  agent            Agent    @relation(fields: [agentId], references: [id])
 }
 
 model AgentCapability {
@@ -63,24 +59,22 @@ model AgentCapability {
   limits     Json     @default("{}")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-
-  agent Agent @relation(fields: [agentId], references: [id])
+  agent      Agent    @relation(fields: [agentId], references: [id])
 }
 
 model Session {
-  id         String   @id @default(uuid())
-  userId     String?
-  merchantId String?
-  state      String   @default("CREATED")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  user             User?             @relation(fields: [userId], references: [id])
-  messages         Message[]
-  skill_executions SkillExecution[]
-  tool_calls       ToolCall[]
+  id               String           @id @default(uuid())
+  userId           String?
+  merchantId       String?
+  state            String           @default("CREATED")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
   orders           CommerceOrder[]
   events           Event[]
+  messages         Message[]
+  user             User?            @relation(fields: [userId], references: [id])
+  skill_executions SkillExecution[]
+  tool_calls       ToolCall[]
 }
 
 model Message {
@@ -92,17 +86,15 @@ model Message {
   payload   Json
   traceId   String?
   timestamp DateTime @default(now())
-
-  session Session @relation(fields: [sessionId], references: [id])
+  session   Session  @relation(fields: [sessionId], references: [id])
 }
 
 model Skill {
-  id          String   @id @default(uuid())
-  name        String   @unique
+  id          String           @id @default(uuid())
+  name        String           @unique
   description String?
   schema      Json
   version     String
-
   executions  SkillExecution[]
 }
 
@@ -114,9 +106,8 @@ model SkillExecution {
   result    Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  session Session @relation(fields: [sessionId], references: [id])
-  skill   Skill   @relation(fields: [skillId], references: [id])
+  session   Session  @relation(fields: [sessionId], references: [id])
+  skill     Skill    @relation(fields: [skillId], references: [id])
 }
 
 model ToolCall {
@@ -130,60 +121,55 @@ model ToolCall {
   latency     Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  session Session @relation(fields: [sessionId], references: [id])
+  session     Session  @relation(fields: [sessionId], references: [id])
 }
 
 model CommerceOrder {
-  id         String   @id @default(uuid())
+  id         String          @id @default(uuid())
   sessionId  String
   merchantId String
   buyerId    String?
   total      Float
   status     String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  session  Session        @relation(fields: [sessionId], references: [id])
-  merchant Merchant       @relation(fields: [merchantId], references: [id])
-  items    CommerceItem[]
-  payments PaymentIntent[]
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  items      CommerceItem[]
+  merchant   Merchant        @relation(fields: [merchantId], references: [id])
+  session    Session         @relation(fields: [sessionId], references: [id])
+  payments   PaymentIntent[]
 }
 
 model CommerceItem {
-  id        String   @id @default(uuid())
+  id        String        @id @default(uuid())
   orderId   String
   productId String
   quantity  Int
   price     Float
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  order CommerceOrder @relation(fields: [orderId], references: [id])
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  order     CommerceOrder @relation(fields: [orderId], references: [id])
 }
 
 model PaymentIntent {
-  id              String   @id @default(uuid())
+  id              String        @id @default(uuid())
   orderId         String
   amount          Float
   status          String
-  idempotency_key String   @unique
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  order   CommerceOrder @relation(fields: [orderId], references: [id])
-  refunds Refund[]
+  idempotency_key String        @unique
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  order           CommerceOrder @relation(fields: [orderId], references: [id])
+  refunds         Refund[]
 }
 
 model Refund {
-  id        String   @id @default(uuid())
+  id        String        @id @default(uuid())
   paymentId String
   amount    Float
   status    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  payment PaymentIntent @relation(fields: [paymentId], references: [id])
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  payment   PaymentIntent @relation(fields: [paymentId], references: [id])
 }
 
 model Policy {
@@ -199,8 +185,7 @@ model PolicyDecision {
   result    String
   reason    String?
   timestamp DateTime @default(now())
-
-  agent Agent @relation(fields: [agentId], references: [id])
+  agent     Agent    @relation(fields: [agentId], references: [id])
 }
 
 model WorkflowRun {
@@ -210,19 +195,17 @@ model WorkflowRun {
   state         Json           @default("{}")
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
-
   steps         WorkflowStep[]
 }
 
 model WorkflowStep {
-  id        String   @id @default(uuid())
+  id        String      @id @default(uuid())
   runId     String
   step_name String
   status    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  run WorkflowRun @relation(fields: [runId], references: [id])
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  run       WorkflowRun @relation(fields: [runId], references: [id])
 }
 
 model Approval {
@@ -240,8 +223,7 @@ model Event {
   type      String
   payload   Json
   timestamp DateTime @default(now())
-
-  session Session @relation(fields: [sessionId], references: [id])
+  session   Session  @relation(fields: [sessionId], references: [id])
 }
 
 model ModelRequest {
@@ -256,22 +238,20 @@ model ModelRequest {
 }
 
 model EvaluationRun {
-  id            String   @id @default(uuid())
-  timestamp     DateTime @default(now())
+  id            String       @id @default(uuid())
+  timestamp     DateTime     @default(now())
   scenario      String
   overall_score Float
-
-  evaluations Evaluation[]
+  evaluations   Evaluation[]
 }
 
 model Evaluation {
-  id      String   @id @default(uuid())
+  id      String        @id @default(uuid())
   runId   String
   task    String
   score   Float
   details Json
-
-  run EvaluationRun @relation(fields: [runId], references: [id])
+  run     EvaluationRun @relation(fields: [runId], references: [id])
 }
 
 model WorkflowInstance {
@@ -282,4 +262,19 @@ model WorkflowInstance {
   status       String   @default("ACTIVE")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model IdempotencyRecord {
+  id                 String    @id @default(uuid())
+  idempotencyKey     String
+  scope              String
+  requestFingerprint String
+  status             String
+  result             Json?
+  error              Json?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  completedAt        DateTime?
+
+  @@unique([scope, idempotencyKey])
 }

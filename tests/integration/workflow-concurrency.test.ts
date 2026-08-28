@@ -115,14 +115,16 @@ describe('Phase 15.5: Workflow Concurrency & Optimistic Locking', () => {
   it('5. Reconciliation uses $transaction atomically', async () => {
     const { PrismaIdempotencyRepository } = await import('../../src/database/repositories/idempotency.repository');
     const { WebhookRepository } = await import('../../src/database/repositories/webhook.repository');
+    const { OutboxRepository } = await import('../../src/database/repositories/outbox.repository');
     const { ReconciliationEngine } = await import('../../src/agent/idempotency/reconciliation-engine');
     const { EventEmitter } = await import('events');
     const crypto = await import('crypto');
 
     const idempotencyRepo = new PrismaIdempotencyRepository(prisma);
     const webhookRepo = new WebhookRepository(prisma);
+    const outboxRepo = new OutboxRepository(prisma);
     const eventEmitter = new EventEmitter();
-    const engine = new ReconciliationEngine(prisma, idempotencyRepo, webhookRepo, eventEmitter);
+    const engine = new ReconciliationEngine(prisma, idempotencyRepo, webhookRepo, eventEmitter, outboxRepo);
 
     const idemKey = crypto.randomUUID();
     const providerPaymentId = 'pay_' + crypto.randomUUID().replace(/-/g, '').slice(0, 14);

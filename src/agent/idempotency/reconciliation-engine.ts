@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client';
+import { OutboxRepository } from '../../database/repositories/outbox.repository';
+import crypto from 'crypto';
 import { WebhookEvent } from '../payments/webhook';
 import { PrismaIdempotencyRepository } from '../../database/repositories/idempotency.repository';
 import { WebhookRepository } from '../../database/repositories/webhook.repository';
@@ -17,6 +19,7 @@ export class ReconciliationEngine {
     private readonly idempotencyRepo: PrismaIdempotencyRepository,
     private readonly webhookRepo: WebhookRepository,
     private readonly eventEmitter: { emit(event: string, payload: any): void },
+    private readonly outboxRepo: OutboxRepository,
     private readonly workflowRepo?: WorkflowRepository
   ) {}
 
@@ -69,6 +72,23 @@ export class ReconciliationEngine {
           reconciledByWebhook: true
         }, tx);
       }
+
+      await this.outboxRepo.create(
+        {
+          eventId: crypto.randomUUID(),
+          eventType: 'PAYMENT_RECONCILED',
+          aggregateType: 'payment',
+          aggregateId: event.providerEntityId,
+          correlationId: event.idempotencyKey,
+          payload: {
+            idempotencyKey: event.idempotencyKey,
+            status: newStatus,
+            providerEventId: event.providerEventId,
+            rawPayload: event.rawPayload
+          }
+        },
+        tx
+      );
 
       emitPayload = {
         idempotencyKey: event.idempotencyKey,

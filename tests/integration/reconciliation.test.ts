@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { PrismaIdempotencyRepository } from '../../src/database/repositories/idempotency.repository';
 import { WebhookRepository } from '../../src/database/repositories/webhook.repository';
+import { OutboxRepository } from '../../src/database/repositories/outbox.repository';
 import { ReconciliationEngine } from '../../src/agent/idempotency/reconciliation-engine';
 import { RazorpayWebhookAdapter } from '../../src/providers/razorpay/razorpay.webhook';
 import { EventEmitter } from 'events';
@@ -10,6 +11,7 @@ describe('Phase 15: Webhook Reconciliation Integration', () => {
   let prisma: PrismaClient;
   let idempotencyRepo: PrismaIdempotencyRepository;
   let webhookRepo: WebhookRepository;
+  let outboxRepo: OutboxRepository;
   let eventEmitter: EventEmitter;
   let reconciliationEngine: ReconciliationEngine;
   let razorpayAdapter: RazorpayWebhookAdapter;
@@ -19,8 +21,9 @@ describe('Phase 15: Webhook Reconciliation Integration', () => {
     prisma = new PrismaClient();
     idempotencyRepo = new PrismaIdempotencyRepository(prisma);
     webhookRepo = new WebhookRepository(prisma);
+    outboxRepo = new OutboxRepository(prisma);
     eventEmitter = new EventEmitter();
-    reconciliationEngine = new ReconciliationEngine(prisma, idempotencyRepo, webhookRepo, eventEmitter);
+    reconciliationEngine = new ReconciliationEngine(prisma, idempotencyRepo, webhookRepo, eventEmitter, outboxRepo);
     razorpayAdapter = new RazorpayWebhookAdapter(webhookSecret);
   });
 
@@ -113,7 +116,7 @@ describe('Phase 15: Webhook Reconciliation Integration', () => {
     await reconciliationEngine.processWebhook(genericEvent);
     await reconciliationEngine.processWebhook(genericEvent);
 
-    expect(eventCount).toBe(1); // Only emitted once due to deduplication
+    expect(eventCount).toBe(1); 
 
     const updatedRecord = await idempotencyRepo.getRecord(idemKey, 'payment_capture');
     expect(updatedRecord!.status).toBe('COMPLETED');

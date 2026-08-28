@@ -47,7 +47,15 @@ export type MerchantCapability =
   | 'pricing'
   | 'subscriptions'
   | 'usage'
-  | 'negotiation';
+  | 'negotiation'
+  | 'catalog.read'
+  | 'inventory.read'
+  | 'quote.create'
+  | 'offer.create'
+  | 'negotiation.create'
+  | 'order.create'
+  | 'payment.create'
+  | 'refund.create';
 
 export interface MerchantCapabilities {
   has(capability: MerchantCapability): boolean;

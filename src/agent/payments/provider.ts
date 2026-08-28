@@ -1,4 +1,5 @@
-import { CaptureRequest, PaymentIntent, ProviderResult, RefundRequest, WebhookPayload } from './types';
+import { CaptureRequest, PaymentIntent, ProviderResult, RefundRequest } from './types';
+import { WebhookEvent } from './webhook';
 
 export interface PaymentProvider {
   
@@ -8,5 +9,5 @@ export interface PaymentProvider {
 
   refundPayment(request: RefundRequest, idempotencyKey?: string): Promise<ProviderResult<PaymentIntent>>;
 
-  reconcileWebhook(payload: any, signature: string, secret: string): Promise<ProviderResult<WebhookPayload>>;
+  reconcileWebhook(payload: any, signature: string, secret: string): Promise<ProviderResult<WebhookEvent>>;
 }

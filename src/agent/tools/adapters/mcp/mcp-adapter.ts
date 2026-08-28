@@ -9,7 +9,7 @@ import { MCPToolAdapterOptions } from './types';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
 /**
- * Adapter for executing tools over the Model Context Protocol (MCP).
+ * Executes tools over the Model Context Protocol (MCP).
  * 
  * Maps a generic Tool to a specific MCP server tool using the official MCP SDK.
  */
@@ -22,21 +22,25 @@ export class MCPToolAdapter<Input = unknown, Output = unknown> implements ToolAd
     }
   ) {}
 
+  /**
+   * Executes the MCP tool implementation via the configured SDK client.
+   * 
+   * @throws {MCPToolAdapterError} If execution aborts prematurely or an unknown error occurs.
+   * @throws {MCPConnectionError} If the client fails to communicate with the MCP server.
+   * @throws {MCPInvocationError} If the tool invocation explicitly fails.
+   */
   async execute(input: Input, context: ToolAdapterContext): Promise<Output> {
     if (context.abortSignal?.aborted) {
       throw context.abortSignal.reason || new MCPToolAdapterError('Execution aborted before start');
     }
 
     try {
-      // Connect check/lazy validation could go here if client requires it,
-      // but typically we assume the injected client is managed by the orchestrator
-      
       const result = await this.options.client.callTool(
         {
           name: this.options.toolName,
           arguments: input as Record<string, unknown>
         },
-        undefined, // default result schema
+        undefined,
         { signal: context.abortSignal }
       );
 
@@ -47,17 +51,14 @@ export class MCPToolAdapter<Input = unknown, Output = unknown> implements ToolAd
         throw error;
       }
       
-      // If the SDK threw an abort error directly during cancellation
       if (error.name === 'AbortError' || error.message?.includes('aborted')) {
         throw context.abortSignal?.reason || error;
       }
 
-      // Map connection/protocol errors gracefully
       if (error.message?.includes('connection') || error.code === 'ECONNREFUSED') {
         throw new MCPConnectionError(`Failed to communicate with MCP server for tool ${this.options.toolName}`, error);
       }
 
-      // If it's already an MCP error (like MCPProtocolError), rethrow
       if (error instanceof MCPToolAdapterError) {
         throw error;
       }
@@ -66,12 +67,15 @@ export class MCPToolAdapter<Input = unknown, Output = unknown> implements ToolAd
     }
   }
 
+  /**
+   * Transforms the raw MCP CallToolResult into the configured output type.
+   * Uses responseTransformer if provided; otherwise extracts text content natively.
+   */
   private transformResponse(result: any): Output {
     if (this.options.responseTransformer) {
       return this.options.responseTransformer(result);
     }
 
-    // Handle standard content array
     if (result.content && Array.isArray(result.content)) {
       const textContent = result.content.find((c: any) => c.type === 'text');
       if (!textContent || !('text' in textContent)) {
@@ -85,7 +89,6 @@ export class MCPToolAdapter<Input = unknown, Output = unknown> implements ToolAd
       }
     }
     
-    // Handle potential compatibility mode or raw results
     if (result.toolResult) {
       return result.toolResult as Output;
     }

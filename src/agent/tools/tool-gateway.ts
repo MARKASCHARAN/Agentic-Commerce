@@ -13,11 +13,17 @@ export class ToolGateway {
   constructor(private readonly deps: ToolGatewayDependencies) {}
 
   /**
-   * Executes a tool via the registry, providing validation, timeouts,
-   * cancellation, and lifecycle events.
+   * Helper to emit strictly typed tool lifecycle events to the runtime's event publisher.
+   */
+  private emitEvent(event: string, payload: any): void {
+    this.deps.eventEmitter.emit(event, payload);
+  }
+
+  /**
+   * Executes a tool strictly enforcing timeouts, validations, and events.
    * 
-   * @param request The tool execution request containing inputs and context.
-   * @returns A promise resolving to the strict output of the tool.
+   * @throws {ToolNotFoundError} If the requested tool is not found in the registry.
+   * @throws {ToolExecutionError} If the tool execution explicitly fails or times out.
    */
   async execute<Input = unknown, Output = unknown>(
     request: ToolExecutionRequest<Input>
@@ -26,7 +32,7 @@ export class ToolGateway {
     const { executionId, agentId, sessionId, abortSignal } = context;
     
     // Resolve tool
-    const tool = this.deps.toolRegistry.get(toolId); // Throws ToolNotFoundError
+    const tool = this.deps.toolRegistry.get(toolId); 
 
     if (abortSignal?.aborted) {
       throw abortSignal.reason || new Error(`Tool execution cancelled before starting: ${toolId}`);

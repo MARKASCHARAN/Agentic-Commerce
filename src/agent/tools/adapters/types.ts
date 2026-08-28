@@ -32,9 +32,9 @@ export interface ToolAdapter<Input = unknown, Output = unknown> {
   /**
    * Executes the tool capability over the adapter's implementation mechanism.
    * 
-   * @param input - The strictly validated input payload.
-   * @param context - The execution context (identity, abort signal).
-   * @returns A promise resolving to the raw output, which will be validated by the gateway.
+   * @param {Input} input - The strictly validated input payload.
+   * @param {ToolAdapterContext} context - The execution context (identity, abort signal).
+   * @returns {Promise<Output>} A promise resolving to the raw output, which will be validated by the gateway.
    */
   execute(input: Input, context: ToolAdapterContext): Promise<Output>;
 }

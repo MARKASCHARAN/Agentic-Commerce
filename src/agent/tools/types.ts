@@ -59,6 +59,8 @@ export interface Tool<Input = unknown, Output = unknown> {
    * The adapter responsible for executing the tool over its specific transport.
    * This replaces the direct `execute` method, allowing the Tool to remain
    * transport-agnostic while the gateway orchestrates the adapter.
+   * 
+   * @type {ToolAdapter<Input, Output>}
    */
   adapter: ToolAdapter<Input, Output>;
 }

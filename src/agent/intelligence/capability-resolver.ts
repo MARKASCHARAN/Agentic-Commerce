@@ -19,12 +19,11 @@ export class StaticMerchantCapabilities implements MerchantCapabilities {
 export class MerchantCapabilityResolver {
   
   private readonly configMap: Map<string, MerchantCapability[]> = new Map([
+    ['merchant-d2c', ['catalog', 'inventory', 'pricing', 'order.create', 'payment.create']],
     
-    ['merchant-d2c', ['catalog', 'inventory', 'pricing']],
+    ['merchant-saas', ['subscriptions', 'usage', 'pricing', 'payment.create', 'order.create']],
     
-    ['merchant-saas', ['subscriptions', 'usage', 'pricing']],
-    
-    ['merchant-b2b', ['catalog', 'inventory', 'pricing', 'negotiation']],
+    ['merchant-b2b', ['catalog', 'inventory', 'pricing', 'negotiation', 'quote.create', 'offer.create', 'negotiation.create', 'order.create', 'payment.create']],
   ]);
 
   async resolve(merchantId: string): Promise<MerchantCapabilities> {

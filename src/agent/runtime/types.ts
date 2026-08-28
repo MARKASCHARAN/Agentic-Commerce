@@ -17,6 +17,13 @@ export const RuntimeActionSchema = z.discriminatedUnion('type', [
     }),
   }),
   z.object({
+    type: z.literal('SKILL_REQUEST'),
+    payload: z.object({
+      skillName: z.string(),
+      intent: z.record(z.string(), z.any()),
+    }),
+  }),
+  z.object({
     type: z.literal('CONTINUE'),
     payload: z.object({
       thought: z.string(),
@@ -120,6 +127,8 @@ export interface AgentEventEmitter {
 
 import { RevenueIntelligenceEngine } from '../intelligence/revenue-engine';
 import { RevenueTracker } from '../intelligence/revenue-tracker';
+import { MerchantCapabilityResolver } from '../intelligence/capability-resolver';
+import { NegotiationEngine } from '../intelligence/negotiation/negotiation-engine';
 
 export interface AgentRuntimeDependencies {
   modelGateway: ModelGateway;
@@ -130,4 +139,6 @@ export interface AgentRuntimeDependencies {
   eventEmitter: AgentEventEmitter;
   revenueEngine?: RevenueIntelligenceEngine;
   revenueTracker?: RevenueTracker;
+  capabilityResolver?: MerchantCapabilityResolver;
+  negotiationEngine?: NegotiationEngine;
 }

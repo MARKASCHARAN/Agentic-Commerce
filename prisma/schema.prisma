@@ -25,6 +25,8 @@ model Merchant {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   orders      CommerceOrder[]
+  capabilities MerchantCapability[]
+  guardrails  MerchantGuardrail?
   user        User            @relation(fields: [userId], references: [id])
 }
 
@@ -345,3 +347,32 @@ model CommerceMessage {
   @@index([createdAt])
 }
 
+model MerchantCapability {
+  id         String   @id @default(uuid())
+  merchantId String
+  capability String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  merchant   Merchant @relation(fields: [merchantId], references: [id])
+
+  @@unique([merchantId, capability])
+}
+
+model MerchantGuardrail {
+  id                          String   @id @default(uuid())
+  merchantId                  String   @unique
+  revenueGoal                 String   @default("BALANCED")
+  currency                    String   @default("USD")
+  autonomousPaymentLimitMinor Int      @default(0)
+  approvalAboveMinor          Int      @default(0)
+  maxDiscountBps              Int      @default(0)
+  minimumMarginBps            Int      @default(0)
+  negotiationEnabled          Boolean  @default(false)
+  upsellEnabled               Boolean  @default(false)
+  crossSellEnabled            Boolean  @default(false)
+  disabledSkills              String[] @default([])
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+}

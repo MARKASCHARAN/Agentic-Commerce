@@ -31,7 +31,17 @@ describe.sequential('Phase 21: Commerce Protocol Integration', () => {
     await redis.connect();
 
     messageRepo = new CommerceMessageRepository(prisma);
-    capabilityResolver = new MerchantCapabilityResolver();
+    capabilityResolver = {
+      resolve: async (merchantId: string) => {
+        if (merchantId === 'merchant-d2c') {
+          return { has: (c: string) => ['catalog.read', 'inventory.read', 'pricing', 'order.create', 'payment.create'].includes(c), getAll: () => [] };
+        }
+        if (merchantId === 'merchant-b2b') {
+          return { has: (c: string) => ['catalog.read', 'inventory.read', 'pricing', 'negotiation', 'quote.create', 'offer.create', 'negotiation.create', 'order.create', 'payment.create'].includes(c), getAll: () => [] };
+        }
+        return { has: () => false, getAll: () => [] };
+      }
+    } as any;
     
     const idempotencyRepo = new PrismaIdempotencyRepository(prisma);
     const idempotencyEngine = new IdempotencyEngine(idempotencyRepo);

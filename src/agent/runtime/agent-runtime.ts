@@ -64,14 +64,21 @@ export class AgentRuntime {
 
       const context = await this.deps.stateManager.loadContext(identity, task);
 
+      // --- GUARDRAIL RESOLUTION ---
+      // Guardrails are fetched server-side using the authenticated merchantId.
+      // The LLM never sees raw limits and cannot modify them.
+      const primaryMerchantId = identity.merchantId || context.scopedData?.merchantId || identity.userId;
+      let guardrails = primaryMerchantId && this.deps.guardrailRepository
+        ? await this.deps.guardrailRepository.getGuardrails(primaryMerchantId)
+        : null;
+
       if (this.deps.revenueEngine) {
-        const merchantId = identity.merchantId || context.scopedData?.merchantId || identity.userId;
-        
-        if (merchantId) {
-          const revenueOpportunity = await this.deps.revenueEngine.analyze(merchantId, {
-            sessionId: identity.sessionId,
-            ...context.scopedData 
-          });
+        if (primaryMerchantId) {
+          const revenueOpportunity = await this.deps.revenueEngine.analyze(
+            primaryMerchantId,
+            { sessionId: identity.sessionId, ...context.scopedData },
+            guardrails ?? undefined
+          );
           
           if (revenueOpportunity) {
             if (this.deps.revenueTracker) {
@@ -83,14 +90,21 @@ export class AgentRuntime {
       }
 
       let availableSkills = this.deps.skillRegistry ? this.deps.skillRegistry.list() : [];
-      const primaryMerchantId = identity.merchantId || context.scopedData?.merchantId || identity.userId;
-      
+
       if (this.deps.capabilityResolver && primaryMerchantId) {
         const capabilities = await this.deps.capabilityResolver.resolve(primaryMerchantId);
         availableSkills = availableSkills.filter(skill => {
           if (!skill.requiredCapabilities || skill.requiredCapabilities.length === 0) return true;
           return skill.requiredCapabilities.every(cap => capabilities.has(cap as any));
         });
+      }
+
+      // --- DISABLED SKILL FILTERING ---
+      // Guardrails disable skills before the LLM ever sees them.
+      // LLM cannot request a skill that was removed from the available list.
+      if (guardrails && guardrails.disabledSkills.length > 0) {
+        const disabled = new Set(guardrails.disabledSkills);
+        availableSkills = availableSkills.filter(skill => !disabled.has(skill.id) && !disabled.has(skill.name));
       }
 
       const skillsMetadata = availableSkills.map(s => {
@@ -170,7 +184,8 @@ export class AgentRuntime {
             if (this.deps.negotiationEngine) {
               const policy = context.scopedData.negotiationPolicy || { enabled: false, negotiable: false };
               const proposal = action.payload.intent as any;
-              const result = this.deps.negotiationEngine.evaluate(proposal, policy);
+              // Pass guardrails to NegotiationEngine so merchant limits are always enforced
+              const result = this.deps.negotiationEngine.evaluate(proposal, policy, guardrails ?? undefined);
               executorResult = result;
             } else {
               executorResult = { status: 'mocked_negotiation_success' }; 

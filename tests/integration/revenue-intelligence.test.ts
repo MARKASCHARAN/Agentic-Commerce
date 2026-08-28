@@ -13,7 +13,22 @@ describe.sequential('Phase 19: Merchant Revenue Intelligence Layer', () => {
     policyEngine = {} as PolicyEngine;
     modelGateway = {} as ModelGateway;
 
-    engine = new RevenueIntelligenceEngine(policyEngine, modelGateway);
+    const mockResolver = {
+      resolve: async (merchantId: string) => {
+        if (merchantId === 'merchant-d2c') {
+          return { has: (c: string) => ['catalog', 'inventory', 'pricing', 'order.create', 'payment.create', 'checkout.create', 'refund.create', 'upsell.create', 'cross_sell.create'].includes(c), getAll: () => [] };
+        }
+        if (merchantId === 'merchant-saas') {
+          return { has: (c: string) => ['subscriptions', 'usage', 'pricing', 'payment.create', 'order.create'].includes(c), getAll: () => [] };
+        }
+        if (merchantId === 'merchant-b2b') {
+          return { has: (c: string) => ['catalog', 'inventory', 'pricing', 'negotiation', 'quote.create', 'offer.create', 'negotiation.create', 'order.create', 'payment.create'].includes(c), getAll: () => [] };
+        }
+        return { has: () => false, getAll: () => [] };
+      }
+    } as any;
+
+    engine = new RevenueIntelligenceEngine(policyEngine, modelGateway, mockResolver);
   });
 
   it('1. D2C E-commerce: Detects valid cross-sell opportunity and rejects out-of-stock items', async () => {

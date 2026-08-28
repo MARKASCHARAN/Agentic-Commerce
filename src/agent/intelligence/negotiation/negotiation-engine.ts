@@ -1,8 +1,12 @@
 import { NegotiationPolicy, NegotiationProposal, NegotiationResult } from './types';
+import { MerchantGuardrailConfig } from '../../policy/guardrails';
 
 export class NegotiationEngine {
-  evaluate(proposal: NegotiationProposal, policy: NegotiationPolicy): NegotiationResult {
-    if (!policy.enabled || !policy.negotiable) {
+  evaluate(proposal: NegotiationProposal, policy: NegotiationPolicy, guardrails?: MerchantGuardrailConfig): NegotiationResult {
+    const isNegotiationEnabled = guardrails ? guardrails.negotiationEnabled : policy.enabled;
+    const effectiveNegotiable = policy.negotiable && isNegotiationEnabled;
+
+    if (!effectiveNegotiable) {
       return { 
         allowed: false, 
         reason: "Resource is not negotiable or negotiation is disabled", 
@@ -10,7 +14,17 @@ export class NegotiationEngine {
       };
     }
     
+    
+    // Policy-defined max discount. 0 means "no explicit policy limit".
     let maxAllowedDiscountBps = policy.maxDiscountBps || 0;
+    if (guardrails && guardrails.maxDiscountBps > 0) {
+      // Guardrails form a hard ceiling. If policy has no explicit limit (0),
+      // use the guardrail limit. Otherwise take the stricter (lower) of the two.
+      maxAllowedDiscountBps = maxAllowedDiscountBps === 0
+        ? guardrails.maxDiscountBps
+        : Math.min(maxAllowedDiscountBps, guardrails.maxDiscountBps);
+    }
+
     let appliedRule = "maximum discount";
 
     if (policy.quantityDiscountTiers && policy.quantityDiscountTiers.length > 0) {
@@ -31,7 +45,14 @@ export class NegotiationEngine {
 
     // 2. Margin floor: We round up the required margin, effectively making the floor higher (safer).
     let marginFloor = 0;
-    if (policy.minimumMarginBps !== undefined) {
+    let effectiveMinMarginBps = policy.minimumMarginBps;
+    if (guardrails && guardrails.minimumMarginBps > 0) {
+      effectiveMinMarginBps = effectiveMinMarginBps === undefined 
+        ? guardrails.minimumMarginBps
+        : Math.max(effectiveMinMarginBps, guardrails.minimumMarginBps);
+    }
+
+    if (effectiveMinMarginBps !== undefined && effectiveMinMarginBps > 0) {
       if (proposal.costMinor === undefined) {
          return { 
            allowed: false, 
@@ -39,7 +60,7 @@ export class NegotiationEngine {
            approvedPriceMinor: proposal.originalPriceMinor 
          };
       }
-      marginFloor = proposal.costMinor + Math.ceil((proposal.costMinor * policy.minimumMarginBps) / 10000);
+      marginFloor = proposal.costMinor + Math.ceil((proposal.costMinor * effectiveMinMarginBps) / 10000);
     }
 
     // 3. Absolute floor

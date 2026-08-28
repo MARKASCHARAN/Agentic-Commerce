@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ExecutionIdentity } from '../runtime/types';
+import { MerchantGuardrailConfig } from './guardrails';
 
 export type PolicyId = string & {
   readonly __brand: 'PolicyId';
@@ -21,7 +22,7 @@ export interface PolicyDecision {
 }
 
 export interface PolicyContext extends ExecutionIdentity {
-  
+  guardrails?: MerchantGuardrailConfig;
 }
 
 export interface Policy<Input = unknown> {

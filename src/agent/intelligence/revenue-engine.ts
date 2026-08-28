@@ -1,4 +1,5 @@
 import { MerchantCapabilityResolver } from './capability-resolver';
+import { MerchantGuardrailConfig } from '../policy/guardrails';
 import { AOVDetector } from './detectors/aov.detector';
 import { UpgradeDetector } from './detectors/upgrade.detector';
 import { ConversionDetector } from './detectors/conversion.detector';
@@ -13,8 +14,9 @@ export class RevenueIntelligenceEngine {
   constructor(
     private readonly policyEngine: PolicyEngine,
     private readonly modelGateway: ModelGateway,
+    capabilityResolver?: MerchantCapabilityResolver
   ) {
-    this.capabilityResolver = new MerchantCapabilityResolver();
+    this.capabilityResolver = capabilityResolver || new MerchantCapabilityResolver();
     this.detectors = [
       new AOVDetector(),
       new UpgradeDetector(),
@@ -22,8 +24,7 @@ export class RevenueIntelligenceEngine {
     ];
   }
 
-  async analyze(merchantId: string, context: Record<string, any>): Promise<RevenueOpportunity | null> {
-    
+  async analyze(merchantId: string, context: Record<string, any>, guardrails?: MerchantGuardrailConfig): Promise<RevenueOpportunity | null> {
     const capabilities = await this.capabilityResolver.resolve(merchantId);
 
     const applicableDetectors = this.detectors.filter(detector => 
@@ -34,6 +35,21 @@ export class RevenueIntelligenceEngine {
     for (const detector of applicableDetectors) {
       const results = await detector.detect(merchantId, capabilities, context);
       rawOpportunities.push(...results);
+    }
+
+    if (guardrails) {
+      if (!guardrails.upsellEnabled) {
+        // Remove UPSELL
+        for (let i = rawOpportunities.length - 1; i >= 0; i--) {
+          if (rawOpportunities[i].type === 'UPSELL') rawOpportunities.splice(i, 1);
+        }
+      }
+      if (!guardrails.crossSellEnabled) {
+        // Remove CROSS_SELL
+        for (let i = rawOpportunities.length - 1; i >= 0; i--) {
+          if (rawOpportunities[i].type === 'CROSS_SELL') rawOpportunities.splice(i, 1);
+        }
+      }
     }
 
     if (rawOpportunities.length === 0) {
@@ -57,7 +73,7 @@ export class RevenueIntelligenceEngine {
       return null;
     }
 
-    return await this.rankOpportunities(safeOpportunities, context);
+    return await this.rankOpportunities(safeOpportunities, context, guardrails);
   }
 
   private async evaluatePolicy(merchantId: string, opp: RevenueOpportunity): Promise<boolean> {
@@ -69,17 +85,22 @@ export class RevenueIntelligenceEngine {
     return true; 
   }
 
-  private async rankOpportunities(opportunities: RevenueOpportunity[], context: Record<string, any>): Promise<RevenueOpportunity> {
-    
+  private async rankOpportunities(opportunities: RevenueOpportunity[], context: Record<string, any>, guardrails?: MerchantGuardrailConfig): Promise<RevenueOpportunity> {
     if (opportunities.length === 1) {
       
       opportunities[0].evidence = `AI selected: ${opportunities[0].evidence}`;
       return opportunities[0];
     }
 
-    opportunities.sort((a, b) => b.expectedImpactValue - a.expectedImpactValue);
+    if (guardrails?.revenueGoal === 'INCREASE_CONVERSION') {
+      // Sort by confidence rather than expected impact
+      opportunities.sort((a, b) => b.confidence - a.confidence);
+    } else {
+      opportunities.sort((a, b) => b.expectedImpactValue - a.expectedImpactValue);
+    }
+
     const top = opportunities[0];
-    top.evidence = `AI ranked top priority: ${top.evidence}`;
+    top.evidence = `AI ranked top priority based on ${guardrails?.revenueGoal || 'BALANCED'} goal: ${top.evidence}`;
     
     return top;
   }

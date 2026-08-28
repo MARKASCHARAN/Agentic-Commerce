@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
@@ -58,6 +58,12 @@ describe.sequential('Phase 18: Retry + Failure Classification', () => {
       redisUrl: REDIS_URL,
       concurrency: 1,
     });
+  });
+
+  afterEach(async () => {
+    if (worker) {
+      await worker.stop();
+    }
   });
 
   afterAll(async () => {

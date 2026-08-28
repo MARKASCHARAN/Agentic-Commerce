@@ -18,7 +18,17 @@ describe.sequential('Phase 22: Dynamic Skill System', () => {
   beforeAll(async () => {
     loader = new SkillLoader(rootSkillsDir);
     registry = new SkillRegistry();
-    capabilityResolver = new MerchantCapabilityResolver();
+    capabilityResolver = {
+      resolve: async (merchantId: string) => {
+        if (merchantId === 'merchant-d2c') {
+          return { has: (c: string) => ['catalog', 'inventory', 'pricing', 'order.create', 'payment.create', 'checkout.create', 'refund.create', 'upsell.create', 'cross_sell.create'].includes(c), getAll: () => [] };
+        }
+        if (merchantId === 'merchant-b2b') {
+          return { has: (c: string) => ['catalog', 'inventory', 'pricing', 'negotiation', 'quote.create', 'offer.create', 'negotiation.create', 'order.create', 'payment.create'].includes(c), getAll: () => [] };
+        }
+        return { has: () => false, getAll: () => [] };
+      }
+    } as any;
     
     // Setup a temp directory for some destructive/malformed tests
     await fs.mkdir(tempSkillsDir, { recursive: true });

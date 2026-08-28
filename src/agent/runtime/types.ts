@@ -55,6 +55,7 @@ export interface ExecutionIdentity {
   executionId: string;
   agentId?: string;
   userId?: string;
+  merchantId?: string;
 }
 
 export interface ExecutionBudget {

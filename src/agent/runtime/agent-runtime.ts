@@ -65,8 +65,7 @@ export class AgentRuntime {
       const context = await this.deps.stateManager.loadContext(identity, task);
 
       if (this.deps.revenueEngine) {
-
-        const merchantId = context.scopedData?.merchantId || identity.userId;
+        const merchantId = identity.merchantId || context.scopedData?.merchantId || identity.userId;
         
         if (merchantId) {
           const revenueOpportunity = await this.deps.revenueEngine.analyze(merchantId, {
@@ -84,8 +83,10 @@ export class AgentRuntime {
       }
 
       let availableSkills = this.deps.skillRegistry ? this.deps.skillRegistry.list() : [];
-      if (this.deps.capabilityResolver && identity.userId) {
-        const capabilities = await this.deps.capabilityResolver.resolve(identity.userId);
+      const primaryMerchantId = identity.merchantId || context.scopedData?.merchantId || identity.userId;
+      
+      if (this.deps.capabilityResolver && primaryMerchantId) {
+        const capabilities = await this.deps.capabilityResolver.resolve(primaryMerchantId);
         availableSkills = availableSkills.filter(skill => {
           if (!skill.requiredCapabilities || skill.requiredCapabilities.length === 0) return true;
           return skill.requiredCapabilities.every(cap => capabilities.has(cap as any));
@@ -161,7 +162,7 @@ export class AgentRuntime {
             executorResult = gatewayResult.output;
           } else if (skillName === 'upsell' || skillName === 'cross-sell') {
             if (this.deps.revenueEngine) {
-               executorResult = await this.deps.revenueEngine.analyze(identity.userId!, { ...context.scopedData, intent: action.payload.intent });
+               executorResult = await this.deps.revenueEngine.analyze(primaryMerchantId!, { ...context.scopedData, intent: action.payload.intent });
             } else {
                executorResult = { status: 'mocked_revenue_engine_success' };
             }

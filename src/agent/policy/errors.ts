@@ -47,3 +47,25 @@ export class PolicyExecutionError extends PolicyError {
     this.name = 'PolicyExecutionError';
   }
 }
+
+/**
+ * Thrown when a policy actively denies execution.
+ * This represents a deterministic business or security rule violation.
+ */
+export class PolicyAuthorizationError extends PolicyError {
+  constructor(public readonly policyId: string, public readonly reason: string) {
+    super(`Policy Denied Execution [${policyId}]: ${reason}`);
+    this.name = 'PolicyAuthorizationError';
+  }
+}
+
+/**
+ * Thrown when a policy requires human or external workflow approval before proceeding.
+ * The original request must be halted until the approval is completed.
+ */
+export class PolicyApprovalRequiredError extends PolicyError {
+  constructor(public readonly policyId: string, public readonly requiredApprovals: string[], public readonly reason?: string) {
+    super(`Policy Requires Approval [${policyId}]: ${reason || 'Manual approval needed'} (Required: ${requiredApprovals.join(', ')})`);
+    this.name = 'PolicyApprovalRequiredError';
+  }
+}

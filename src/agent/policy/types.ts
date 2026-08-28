@@ -49,12 +49,12 @@ export interface PolicyContext extends ExecutionIdentity {
  */
 export interface Policy<Input = unknown> {
   metadata: PolicyMetadata;
-  
+
   /**
    * Zod schema ensuring the input is structurally valid before evaluation.
    */
   inputSchema: z.ZodType<Input>;
-  
+
   /**
    * Evaluates the policy deterministically.
    * MUST NOT throw for standard policy failures (return DENY instead).

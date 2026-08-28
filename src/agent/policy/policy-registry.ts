@@ -1,8 +1,8 @@
 import { Policy, PolicyId, PolicyMetadata } from './types';
-import { 
-  PolicyAlreadyRegisteredError, 
-  PolicyNotFoundError, 
-  PolicyValidationError 
+import {
+  PolicyAlreadyRegisteredError,
+  PolicyNotFoundError,
+  PolicyValidationError
 } from './errors';
 
 /**

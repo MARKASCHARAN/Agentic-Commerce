@@ -26,6 +26,11 @@ export class WorkflowStateMachine<TInput, TState extends string, TEvent extends 
 
   public async transition(event: TEvent): Promise<WorkflowExecutionResult> {
     const key = this.getTransitionKey(this._currentState, event);
+    
+    // [STATE MACHINE]
+    // Enforces strict Directed Acyclic Graph (DAG) constraints on commerce flows.
+    // Prevents an agent from skipping critical steps (e.g., jumping straight to PAYMENT_REQUEST 
+    // without an ACCEPTED offer), securing the execution lifecycle.
     const nextState = this.transitionMap.get(key);
 
     if (!nextState) {

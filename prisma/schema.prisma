@@ -325,3 +325,23 @@ model RevenueOpportunityLog {
   
   session             Session  @relation(fields: [sessionId], references: [id])
 }
+
+model CommerceMessage {
+  id              String   @id @default(uuid())
+  messageId       String   @unique
+  protocolVersion String
+  messageType     String
+  sessionId       String
+  sender          String
+  recipient       String
+  correlationId   String
+  payload         Json
+  createdAt       DateTime @default(now())
+  expiresAt       DateTime?
+
+  @@index([sessionId])
+  @@index([correlationId])
+  @@index([messageType])
+  @@index([createdAt])
+}
+

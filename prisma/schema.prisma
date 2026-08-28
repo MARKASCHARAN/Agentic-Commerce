@@ -273,3 +273,13 @@ model Evaluation {
 
   run EvaluationRun @relation(fields: [runId], references: [id])
 }
+
+model WorkflowInstance {
+  id           String   @id @default(uuid())
+  workflowId   String
+  version      Int      @default(1)
+  currentState String
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

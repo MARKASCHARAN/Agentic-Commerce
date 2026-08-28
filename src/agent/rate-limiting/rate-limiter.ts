@@ -7,26 +7,19 @@ import { RateLimitConfigurationError, RateLimitExceededError, RateLimitInfrastru
 export interface RateLimiterRequest {
   identity: RateLimitIdentity;
   config: RateLimitConfig;
-  cost?: number; // Defaults to 1
+  cost?: number; 
 }
 
 export class RateLimiter {
   constructor(private readonly redis: RedisService) {}
 
-  /**
-   * Consumes tokens for multiple rate limit buckets atomically.
-   * If any bucket lacks capacity, none are consumed.
-   *
-   * @throws {RateLimitExceededError} if any bucket lacks capacity
-   * @throws {RateLimitInfrastructureError} if Redis is unavailable and a constraint requires failClosed
-   */
   async consume(requests: RateLimiterRequest[]): Promise<void> {
     if (requests.length === 0) return;
 
     this.validateRequests(requests);
 
     const keys: string[] = [];
-    const args: (string | number)[] = [Date.now()]; // ARGV[1] = nowMs
+    const args: (string | number)[] = [Date.now()]; 
 
     let requiresFailClosed = false;
 
@@ -51,13 +44,12 @@ export class RateLimiter {
             error
           );
         }
-        // Fail-open: Redis is down, but no failClosed strictness applies.
+        
         return;
       }
       throw error;
     }
 
-    // Process results
     for (let i = 0; i < requests.length; i++) {
       const req = requests[i];
       const resultData = rawResults[i];

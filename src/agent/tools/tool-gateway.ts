@@ -20,26 +20,16 @@ export interface ToolGatewayDependencies {
 export class ToolGateway {
   constructor(private readonly deps: ToolGatewayDependencies) { }
 
-  /**
-   * Helper to emit strictly typed tool lifecycle events to the runtime's event publisher.
-   */
   private emitEvent(event: string, payload: any): void {
     this.deps.eventEmitter.emit(event, payload);
   }
 
-  /**
-   * Executes a tool strictly enforcing timeouts, validations, and events.
-   * 
-   * @throws {ToolNotFoundError} If the requested tool is not found in the registry.
-   * @throws {ToolExecutionError} If the tool execution explicitly fails or times out.
-   */
   async execute<Input = unknown, Output = unknown>(
     request: ToolExecutionRequest<Input>
   ): Promise<ToolExecutionResult<Output>> {
     const { toolId, input, context, timeoutMs } = request;
     const { executionId, agentId, sessionId, abortSignal } = context;
 
-    // Resolve tool
     const tool = this.deps.toolRegistry.get(toolId);
 
     if (abortSignal?.aborted) {
@@ -76,7 +66,6 @@ export class ToolGateway {
     try {
       this.deps.eventEmitter.emit('TOOL_STARTED', { ...eventPayloadBase });
 
-      // Validate Input
       let validatedInput: Input;
       try {
         validatedInput = await tool.inputSchema.parseAsync(input) as Input;
@@ -88,7 +77,6 @@ export class ToolGateway {
         throw abortController.signal.reason || new Error(`Execution cancelled before running tool ${toolId}`);
       }
 
-      // Execute Rate Limiting
       if (this.deps.rateLimiter && this.deps.rateLimitConfigMap) {
         const rateLimitConfig = this.deps.rateLimitConfigMap.get(toolId);
         if (rateLimitConfig) {
@@ -101,7 +89,6 @@ export class ToolGateway {
         }
       }
 
-      // Execute Policy Check
       if (!tool.policy?.id) {
         throw new PolicyAuthorizationError('system.fail_closed', `Tool ${toolId} must declare a policy to execute.`);
       }
@@ -132,7 +119,6 @@ export class ToolGateway {
         throw abortController.signal.reason || new Error(`Execution cancelled after policy check for tool ${toolId}`);
       }
 
-      // Execute Tool via Adapter, potentially wrapped in Idempotency
       const executeAdapter = async () => {
         return await tool.adapter.execute(validatedInput, toolContext);
       };
@@ -164,7 +150,6 @@ export class ToolGateway {
         throw abortController.signal.reason || new Error(`Execution cancelled after running tool ${toolId}`);
       }
 
-      // Validate Output
       let validatedOutput: Output;
       try {
         validatedOutput = await tool.outputSchema.parseAsync(rawOutput) as Output;
@@ -182,7 +167,6 @@ export class ToolGateway {
     } catch (error: any) {
       this.deps.eventEmitter.emit('TOOL_FAILED', { ...eventPayloadBase, error });
 
-      // Preserve validation and policy errors
       if (
         error instanceof ToolValidationError ||
         error instanceof ToolNotFoundError ||
@@ -192,7 +176,6 @@ export class ToolGateway {
         throw error;
       }
 
-      // If it's a cancellation or timeout, throw it transparently or wrap it
       if (error.name === 'AbortError' || error.message?.includes('timed out') || error.message?.includes('cancelled')) {
         throw error;
       }

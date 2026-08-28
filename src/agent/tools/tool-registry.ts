@@ -5,10 +5,8 @@ import {
   ToolValidationError 
 } from './errors';
 
-// A deterministic registry that manages discovery and lookup for all Tools.
 export class ToolRegistry {
   private readonly tools = new Map<ToolId, Tool<unknown, unknown>>();
-
 
   register(tool: Tool<unknown, unknown>): void {
     this.validateTool(tool);
@@ -20,11 +18,9 @@ export class ToolRegistry {
     this.tools.set(tool.metadata.id, tool);
   }
 
-
   unregister(toolId: string): void {
     this.tools.delete(toolId as ToolId);
   }
-
 
   get(toolId: string): Tool<unknown, unknown> {
     const tool = this.tools.get(toolId as ToolId);
@@ -34,12 +30,10 @@ export class ToolRegistry {
     return tool;
   }
 
-
   has(toolId: string): boolean {
     return this.tools.has(toolId as ToolId);
   }
 
-  // Returns a read-only list of all registered tool metadata.
   list(): ToolMetadata[] {
     return Array.from(this.tools.values()).map(tool => ({ ...tool.metadata }));
   }

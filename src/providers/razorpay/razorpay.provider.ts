@@ -25,8 +25,7 @@ export class RazorpayProvider implements PaymentProvider {
     if (error?.statusCode === 504 || error?.code === 'ETIMEDOUT') {
       return new PaymentProviderTimeoutError('Razorpay request timed out', error?.statusCode?.toString(), error);
     }
-    
-    // For network drops where we don't know the status
+
     if (error?.code === 'ECONNRESET' || error?.code === 'ENOTFOUND') {
       return new PaymentUnknownError('Razorpay connection dropped, state unknown', error?.code, error);
     }
@@ -66,16 +65,9 @@ export class RazorpayProvider implements PaymentProvider {
   }
 
   async capturePayment(request: CaptureRequest, idempotencyKey?: string): Promise<ProviderResult<PaymentIntent>> {
-    /**
-     * GUARANTEE DOCUMENTATION:
-     * Razorpay's `capture` endpoint does not natively support provider-side idempotency keys.
-     * The official `razorpay` Node SDK explicitly filters out custom headers.
-     * Therefore, for `capturePayment`, EXACTLY-ONCE execution is strictly guaranteed ONLY by our
-     * internal PostgreSQL IdempotencyEngine. If a network crash occurs after capture but before DB update,
-     * it will result in an UNKNOWN state and require manual reconciliation, since we cannot safely retry capture blindly.
-     */
+    
     try {
-      // amount is in smallest unit
+      
       const payment = await this.razorpay.payments.capture(request.paymentId, request.amount, request.currency);
       
       return {
@@ -95,15 +87,7 @@ export class RazorpayProvider implements PaymentProvider {
   }
 
   async refundPayment(request: RefundRequest, idempotencyKey?: string): Promise<ProviderResult<PaymentIntent>> {
-    /**
-     * GUARANTEE DOCUMENTATION:
-     * While Razorpay REST API supports `X-Refund-Idempotency` for refunds, the official Node SDK's
-     * internal request abstraction (`api.js -> allowedHeaders`) aggressively filters out custom headers.
-     * Furthermore, the SDK's `refund` method signature does not accept a headers configuration object.
-     * Consequently, provider-level idempotency cannot be leveraged here without dropping the SDK.
-     * EXACTLY-ONCE execution relies entirely on our internal IdempotencyEngine lock.
-     * A crash during refund execution will yield an UNKNOWN state.
-     */
+    
     try {
       const params: any = {};
       if (request.amount) params.amount = request.amount;
@@ -111,9 +95,7 @@ export class RazorpayProvider implements PaymentProvider {
       if (request.reason) params.notes = { reason: request.reason };
 
       const refund = await this.razorpay.payments.refund(request.paymentId, params);
-      
-      // We must fetch the payment again to get the updated status, or infer it
-      // Refund object itself doesn't contain the payment's overall status natively in the same shape.
+
       const payment = await this.razorpay.payments.fetch(request.paymentId);
 
       return {

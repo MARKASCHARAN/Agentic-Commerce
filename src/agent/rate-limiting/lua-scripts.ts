@@ -51,8 +51,7 @@ if allowAll then
         local refillRatePerSecond = tonumber(ARGV[(i-1)*3 + 3])
         
         redis.call('HMSET', key, 'tokens', newTokens, 'lastRefillMs', nowMs)
-        
-        
+
         -- TTL is the time required to fully refill the bucket
         if refillRatePerSecond > 0 then
             local ttlMs = math.ceil((capacity / refillRatePerSecond) * 1000)

@@ -14,7 +14,7 @@ describe('RESTToolAdapter', () => {
 
   beforeAll(async () => {
     server = http.createServer((req, res) => {
-      // Collect body for POST/PUT/PATCH
+      
       let body = '';
       req.on('data', chunk => {
         body += chunk;
@@ -130,7 +130,7 @@ describe('RESTToolAdapter', () => {
 
     expect(result.method).toBe('GET');
     expect(result.query.filter).toBe('active');
-    expect(Object.keys(result.body)).toHaveLength(0); // empty body
+    expect(Object.keys(result.body)).toHaveLength(0); 
   });
 
   it('should handle 204 No Content gracefully', async () => {
@@ -192,7 +192,7 @@ describe('RESTToolAdapter', () => {
 
   it('should translate connection failures into RESTConnectionError', async () => {
     const adapter = new RESTToolAdapter({
-      baseUrl: 'http://127.0.0.1:1', // Nothing should be listening here
+      baseUrl: 'http://127.0.0.1:1', 
       requestMapping: () => ({ method: 'GET', path: '/' })
     });
 
@@ -225,8 +225,7 @@ describe('RESTToolAdapter', () => {
     });
 
     const controller = new AbortController();
-    
-    // Abort after 100ms
+
     setTimeout(() => {
       controller.abort(new Error('Mid-flight abort'));
     }, 100);

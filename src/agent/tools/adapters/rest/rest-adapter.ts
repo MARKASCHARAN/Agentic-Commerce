@@ -7,14 +7,12 @@ import {
   RESTToolAdapterError
 } from './errors';
 
-// Model-generated URLs are never accepted here; the endpoint is fixed by Tool configuration to prevent SSRF.
 export class RESTToolAdapter<Input = unknown, Output = unknown> implements ToolAdapter<Input, Output> {
   public readonly type: ToolAdapterType = 'rest';
 
   constructor(
     private readonly options: RESTToolAdapterOptions<Input, Output>
   ) { }
-
 
   async execute(input: Input, context: ToolAdapterContext): Promise<Output> {
     if (context.abortSignal?.aborted) {
@@ -61,7 +59,6 @@ export class RESTToolAdapter<Input = unknown, Output = unknown> implements ToolA
     }
   }
 
-  // The resulting URL must remain within the configured origin to prevent SSRF.
   private constructUrl(path: string, query?: Record<string, string | number | boolean>): URL {
     const normalizedBaseUrl = this.options.baseUrl.replace(/\/$/, '');
     const normalizedPath = path.startsWith('/') ? path : `/${path}`;
@@ -84,7 +81,6 @@ export class RESTToolAdapter<Input = unknown, Output = unknown> implements ToolA
     return url;
   }
 
-
   private constructHeaders(dynamicHeaders?: Record<string, string>): Headers {
     const headers = new Headers();
 
@@ -103,7 +99,6 @@ export class RESTToolAdapter<Input = unknown, Output = unknown> implements ToolA
     return headers;
   }
 
-
   private constructBody(bodyData: unknown, headers: Headers): BodyInit | null {
     if (bodyData === undefined || bodyData === null) {
       return null;
@@ -119,13 +114,12 @@ export class RESTToolAdapter<Input = unknown, Output = unknown> implements ToolA
     return bodyData as BodyInit;
   }
 
-
   private async handleErrorResponse(response: Response): Promise<never> {
     let bodyText: string | undefined;
     try {
       bodyText = await response.text();
     } catch (e) {
-      // Ignored: Body cannot be read.
+      
     }
 
     let message = `HTTP Error ${response.status}`;
@@ -138,13 +132,12 @@ export class RESTToolAdapter<Input = unknown, Output = unknown> implements ToolA
           message = parsed.message;
         }
       } catch (e) {
-        // Ignored: Body is not valid JSON.
+        
       }
     }
 
     throw new RESTResponseError(response.status, response.statusText, message, bodyText);
   }
-
 
   private async transformResponse(response: Response): Promise<Output> {
     if (this.options.responseMapping) {

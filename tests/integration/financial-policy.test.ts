@@ -40,7 +40,7 @@ describe('FinancialExecutionPolicy', () => {
     });
 
     expect(policy.evaluate({ amountMinor: 5000, currency: 'USD' }, baseContext).result).toBe('DENY');
-    expect(policy.evaluate({ amountMinor: 5000, currency: 'inr' }, baseContext).result).toBe('DENY'); // Case sensitive
+    expect(policy.evaluate({ amountMinor: 5000, currency: 'inr' }, baseContext).result).toBe('DENY'); 
   });
 
   it('should handle approval threshold logic', () => {

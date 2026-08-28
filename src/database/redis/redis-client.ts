@@ -13,18 +13,17 @@ export class RedisService {
     this.url = options?.url || 'redis://localhost:6379';
   }
 
-
   async connect(): Promise<void> {
     if (this.client) return;
 
     try {
       this.client = new Redis(this.url, {
         lazyConnect: true,
-        // Disable aggressive auto-reconnect in test/foundation phase to make failures observable
+        
         maxRetriesPerRequest: 1,
         retryStrategy(times) {
           if (times > 3) {
-            return null; // stop retrying
+            return null; 
           }
           return Math.min(times * 50, 2000);
         }
@@ -38,20 +37,18 @@ export class RedisService {
     }
   }
 
-
   async disconnect(): Promise<void> {
     if (this.client) {
       try {
         await this.client.quit();
       } catch (error) {
-        // Force disconnect if graceful quit fails
+        
         this.client.disconnect();
       } finally {
         this.client = null;
       }
     }
   }
-
 
   async ping(): Promise<string> {
     this.ensureConnected();
@@ -61,7 +58,6 @@ export class RedisService {
       throw new RedisOperationError('Failed to ping Redis', error);
     }
   }
-
 
   async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
     this.ensureConnected();
@@ -76,7 +72,6 @@ export class RedisService {
     }
   }
 
-
   async get(key: string): Promise<string | null> {
     this.ensureConnected();
     try {
@@ -85,7 +80,6 @@ export class RedisService {
       throw new RedisOperationError(`Failed to get key ${key}`, error);
     }
   }
-
 
   async del(key: string): Promise<void> {
     this.ensureConnected();

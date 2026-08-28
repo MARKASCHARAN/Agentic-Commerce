@@ -85,7 +85,6 @@ describe('PolicyRegistry', () => {
     const ids = list.map(p => p.id).sort();
     expect(ids).toEqual(['policy.1', 'policy.2']);
 
-    // Ensure it's a clone/safe export by trying to mutate it
     list[0].id = 'hacked' as PolicyId;
     const cleanList = registry.list();
     expect(cleanList.find(p => p.id === 'hacked')).toBeUndefined();

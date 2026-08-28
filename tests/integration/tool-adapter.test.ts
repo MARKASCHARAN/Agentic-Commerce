@@ -63,7 +63,7 @@ describe('InProcessToolAdapter', () => {
     const controller = new AbortController();
     
     const adapter = new InProcessToolAdapter(async (input, context) => {
-      // Simulate throwing the abort reason when aborted mid-flight
+      
       throw context.abortSignal!.reason;
     });
 

@@ -14,7 +14,6 @@ import {
 import { PolicyEngine } from '../../src/agent/policy/policy-engine';
 import { PolicyAuthorizationError, PolicyApprovalRequiredError } from '../../src/agent/policy/errors';
 
-
 describe('ToolGateway', () => {
   let registry: ToolRegistry;
   let eventEmitter: { emit: ReturnType<typeof vi.fn> };
@@ -86,7 +85,7 @@ describe('ToolGateway', () => {
   });
 
   it('should throw ToolNotFoundError if tool is missing and NOT emit lifecycle events (except maybe if failed emits are wanted, but here registry throws early)', async () => {
-    // Note: In our current implementation, get() throws before we emit TOOL_STARTED.
+    
     await expect(gateway.execute({
       toolId: 'missing.tool',
       input: {},
@@ -147,7 +146,7 @@ describe('ToolGateway', () => {
     let internalSignal: AbortSignal;
     const executeSpy = vi.fn().mockImplementation(async (input, context) => {
       internalSignal = context.abortSignal;
-      // Simulate long running
+      
       await new Promise(resolve => setTimeout(resolve, 50));
       if (internalSignal.aborted) throw internalSignal.reason;
       return { result: 'done' };
@@ -164,7 +163,6 @@ describe('ToolGateway', () => {
       context: { ...baseContext, abortSignal: controller.signal }
     });
 
-    // Abort shortly after start
     setTimeout(() => controller.abort(new Error('Aborted mid-flight')), 10);
 
     await expect(promise).rejects.toThrowError('Aborted mid-flight');
@@ -174,7 +172,7 @@ describe('ToolGateway', () => {
 
   it('should timeout if execution takes longer than timeoutMs', async () => {
     const executeSpy = vi.fn().mockImplementation(async (input, context) => {
-      // Wait for abort event
+      
       return new Promise((resolve, reject) => {
         context.abortSignal.addEventListener('abort', () => reject(context.abortSignal.reason));
         setTimeout(() => resolve({ result: 'done' }), 200);
@@ -188,7 +186,7 @@ describe('ToolGateway', () => {
       toolId: 'test.timeout',
       input: { value: 'test' },
       context: baseContext,
-      timeoutMs: 50 // Too short!
+      timeoutMs: 50 
     })).rejects.toThrowError(/timed out/);
 
     expect(eventEmitter.emit).toHaveBeenCalledWith('TOOL_FAILED', expect.anything());
@@ -209,14 +207,14 @@ describe('ToolGateway', () => {
     } catch (error: any) {
       expect(error).toBeInstanceOf(ToolExecutionError);
       expect(error.message).toContain('Tool execution failed: [in-process adapter] Some internal db issue');
-      expect(error.cause).toBeDefined(); // The original error is preserved
+      expect(error.cause).toBeDefined(); 
     }
 
     expect(eventEmitter.emit).toHaveBeenCalledWith('TOOL_FAILED', expect.anything());
   });
 
   it('should isolate tool execution completely', async () => {
-    // Verify two different tools don't interfere with each other
+    
     const executeA = vi.fn().mockResolvedValue({ result: 'A' });
     const executeB = vi.fn().mockResolvedValue({ result: 'B' });
 
@@ -233,7 +231,7 @@ describe('ToolGateway', () => {
   it('should fail-closed if a tool does not declare a policy', async () => {
     const executeSpy = vi.fn().mockResolvedValue({ result: 'ignored' });
     const tool = createTestTool('test.no-policy', executeSpy);
-    delete tool.policy; // Remove policy
+    delete tool.policy; 
     registry.register(tool);
 
     await expect(gateway.execute({

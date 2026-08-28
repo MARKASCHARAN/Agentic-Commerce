@@ -11,10 +11,8 @@ import {
 } from './types';
 import { SkillNotFoundError, SkillValidationError } from '../skills/errors';
 
-// Core runtime that executes a single turn of an agentic workflow.
 export class AgentRuntime {
   constructor(private readonly deps: AgentRuntimeDependencies) {}
-
 
   async execute(identity: ExecutionIdentity, task: string, options?: ExecutionOptions): Promise<TurnResult> {
     const startedAt = new Date();
@@ -101,7 +99,7 @@ export class AgentRuntime {
           
           finalResult = { action: action.type, payload: { toolName, result: gatewayResult.output }, usage: { totalTokens: modelRes.usage.totalTokens } };
         } catch (toolError: any) {
-          // TOOL_FAILED is already emitted by ToolGateway
+          
           throw new Error(`Unsupported/Failed action: Tool '${toolName}' could not be executed. Reason: ${toolError.message}`);
         }
       } else if (action.type === 'CONTINUE') {
@@ -146,7 +144,6 @@ export class AgentRuntime {
     this.deps.eventEmitter.emit('STATE_CHANGED', { identity, state });
   }
 
-
   async executeSkill<Input = unknown, Output = unknown>(
     identity: ExecutionIdentity,
     request: SkillExecutionRequest<Input>
@@ -159,13 +156,12 @@ export class AgentRuntime {
       throw request.options.abortSignal.reason || new Error('Execution cancelled before skill start');
     }
 
-    // 1. Resolve skill (throws SkillNotFoundError if missing)
     const skill = this.deps.skillRegistry.get(request.skillId);
 
     this.deps.eventEmitter.emit('SKILL_STARTED', { identity, skillId: request.skillId });
 
     try {
-      // 2. Validate input
+      
       let validatedInput: Input;
       try {
         validatedInput = await skill.inputSchema.parseAsync(request.input) as Input;
@@ -177,7 +173,6 @@ export class AgentRuntime {
         throw request.options.abortSignal.reason || new Error('Execution cancelled during skill execution');
       }
 
-      // 3. Execute skill
       const context = {
         ...identity,
         abortSignal: request.options?.abortSignal,
@@ -189,7 +184,6 @@ export class AgentRuntime {
         throw request.options.abortSignal.reason || new Error('Execution cancelled after skill execution');
       }
 
-      // 4. Validate output
       let validatedOutput: Output;
       try {
         validatedOutput = await skill.outputSchema.parseAsync(rawOutput) as Output;

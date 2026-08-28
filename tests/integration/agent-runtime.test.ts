@@ -198,7 +198,7 @@ describe('AgentRuntime Execution Loop', () => {
 
     it('should validate output and fail safely if skill returns malformed output', async () => {
       const skill = createEchoSkill();
-      // Force it to return bad output
+      
       skill.execute = async () => ({ wrong: true } as any);
       mockDeps.skillRegistry!.register(skill);
 

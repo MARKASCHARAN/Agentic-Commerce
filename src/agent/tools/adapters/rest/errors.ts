@@ -20,7 +20,7 @@ export class RESTResponseError extends RESTToolAdapterError {
   public readonly responseBody?: string;
 
   constructor(status: number, statusText: string, message: string, responseBody?: string) {
-    // DO NOT include potentially sensitive response body directly in the primary error message string
+    
     super(`REST Response Error (${status} ${statusText}): ${message}`);
     this.name = 'RESTResponseError';
     this.status = status;

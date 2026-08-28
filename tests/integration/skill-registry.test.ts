@@ -17,7 +17,6 @@ describe('SkillRegistry', () => {
     registry = new SkillRegistry();
   });
 
-  // Example test skill implementation
   const createEchoSkill = (id: string, name: string): Skill<{ message: string }, { message: string }> => ({
     metadata: {
       id: id as SkillId,
@@ -68,7 +67,6 @@ describe('SkillRegistry', () => {
     expect(list.find(m => m.id === 'test.a')).toBeDefined();
     expect(list.find(m => m.id === 'test.b')).toBeDefined();
 
-    // Verify mutating the list does not affect the registry
     list.pop();
     expect(registry.list()).toHaveLength(2);
   });
@@ -82,7 +80,6 @@ describe('SkillRegistry', () => {
       registry.register(skill);
     }).toThrowError(SkillAlreadyRegisteredError);
 
-    // Check specific error properties
     try {
       registry.register(skill);
     } catch (e: any) {
@@ -96,7 +93,6 @@ describe('SkillRegistry', () => {
       registry.get('does.not.exist');
     }).toThrowError(SkillNotFoundError);
 
-    // Check specific error properties
     try {
       registry.get('does.not.exist');
     } catch (e: any) {
@@ -116,12 +112,11 @@ describe('SkillRegistry', () => {
   });
 
   it('should validate skill definition on registration', () => {
-    // Missing whole metadata
+    
     expect(() => {
       registry.register({ execute: async () => { } } as any);
     }).toThrowError(SkillValidationError);
 
-    // Missing specific metadata fields
     expect(() => {
       registry.register({
         metadata: { id: 'bad', description: 'desc', version: '1.0' },
@@ -131,7 +126,6 @@ describe('SkillRegistry', () => {
       } as any);
     }).toThrowError(SkillValidationError);
 
-    // Missing schemas
     expect(() => {
       registry.register({
         metadata: { id: 'bad', name: 'Bad', description: 'desc', version: '1.0' },
@@ -139,7 +133,6 @@ describe('SkillRegistry', () => {
       } as any);
     }).toThrowError(SkillValidationError);
 
-    // Missing execute function
     expect(() => {
       registry.register({
         metadata: { id: 'bad', name: 'Bad', description: 'desc', version: '1.0' },
@@ -225,13 +218,12 @@ describe('SkillRegistry', () => {
       skill.tools = [{ id: 'tool.one' }];
       
       registry.register(skill);
-      
-      // Attempting to mutate original array shouldn't affect the registered item because it's frozen
+
       const registered = registry.get('test.isolation');
       
       expect(() => {
         registered.tools!.push({ id: 'tool.two' });
-      }).toThrow(); // Frozen object
+      }).toThrow(); 
     });
   });
 });

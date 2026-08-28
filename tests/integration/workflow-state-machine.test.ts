@@ -49,8 +49,7 @@ describe('Workflow State Machine', async () => {
 
     await machine1.transition('START');
     expect(machine1.getCurrentState()).toBe('B');
-    
-    // machine2 remains completely untouched
+
     expect(machine2.getCurrentState()).toBe('A');
   });
 
@@ -58,8 +57,7 @@ describe('Workflow State Machine', async () => {
     const machine = new WorkflowStateMachine(genericDefinition);
     
     await expect(machine.transition('FINISH')).rejects.toThrowError(InvalidTransitionError);
-    
-    // Prove it remained atomic (did not move state)
+
     expect(machine.getCurrentState()).toBe('A');
   });
 
@@ -70,7 +68,6 @@ describe('Workflow State Machine', async () => {
     
     expect(machine.getCurrentState()).toBe('C');
 
-    // State C has no outgoing transitions defined.
     await expect(machine.transition('START')).rejects.toThrowError(InvalidTransitionError);
     await expect(machine.transition('FINISH')).rejects.toThrowError(InvalidTransitionError);
     

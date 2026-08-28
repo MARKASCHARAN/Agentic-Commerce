@@ -19,10 +19,9 @@ describe('MCPToolAdapter', () => {
   let server: Server;
 
   beforeEach(async () => {
-    // 1. Create linked transports
+    
     [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
-    // 2. Setup Server
     server = new Server({
       name: 'test-server',
       version: '1.0.0'
@@ -71,7 +70,6 @@ describe('MCPToolAdapter', () => {
 
     await server.connect(serverTransport);
 
-    // 3. Setup Client
     client = new Client({
       name: 'test-client',
       version: '1.0.0'
@@ -143,7 +141,7 @@ describe('MCPToolAdapter', () => {
       client,
       toolName: 'test.echo',
       responseTransformer: (result) => {
-        // We know test.echo returns a stringified JSON string in text format
+        
         const text = (result.content[0] as any).text;
         const parsed = JSON.parse(text);
         return { customResult: parsed.message.includes('hello') };
@@ -156,16 +154,14 @@ describe('MCPToolAdapter', () => {
 
   it('should handle broken connections gracefully', async () => {
     const adapter = new MCPToolAdapter({ client, toolName: 'test.echo' });
-    
-    // Break the connection
+
     await clientTransport.close();
 
     try {
       await adapter.execute({ message: 'hello' }, baseContext);
       expect.fail('Should have thrown');
     } catch (e: any) {
-      // The SDK might throw different errors depending on implementation details 
-      // but our adapter should catch it and wrap it in an invocation or connection error
+
       expect(e).toBeInstanceOf(MCPToolAdapterError);
     }
   });

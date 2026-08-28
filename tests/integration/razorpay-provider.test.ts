@@ -25,9 +25,7 @@ describe('Phase 14: Payment Domain Contract & Provider Boundary', () => {
   const hasCredentials = !!process.env.RAZORPAY_KEY_ID && !!process.env.RAZORPAY_KEY_SECRET;
 
   beforeEach(async () => {
-    // Clean up - Removed to prevent cross-test isolation bugs
-    // We now rely on unique keys generated for each test.
-    
+
     redisService = new RedisService({ host: 'localhost', port: 6380 });
     const rateLimiter = new RateLimiter(redisService, {
       agentConfig: { capacity: 100, refillRatePerSecond: 100 },
@@ -35,7 +33,6 @@ describe('Phase 14: Payment Domain Contract & Provider Boundary', () => {
       globalConfig: { capacity: 1000, refillRatePerSecond: 1000 }
     });
 
-    // Mock policy engine to always ALLOW
     const policyRegistry = new PolicyRegistry();
     policyRegistry.register({
       metadata: { id: 'financial-policy', name: 'financial', description: 'financial policy', version: '1.0.0' },
@@ -47,13 +44,11 @@ describe('Phase 14: Payment Domain Contract & Provider Boundary', () => {
     const idempotencyRepository = new PrismaIdempotencyRepository(prisma);
     const idempotencyEngine = new IdempotencyEngine(idempotencyRepository);
 
-    // Initialize provider
     provider = new RazorpayProvider(
       process.env.RAZORPAY_KEY_ID || 'test_key',
       process.env.RAZORPAY_KEY_SECRET || 'test_secret'
     );
 
-    // If no credentials, mock the internal SDK calls
     if (!hasCredentials) {
       vi.spyOn((provider as any).razorpay.payments, 'capture').mockImplementation(async (id, amount, currency) => {
         return { id, amount, currency, status: 'captured' };
@@ -118,15 +113,14 @@ describe('Phase 14: Payment Domain Contract & Provider Boundary', () => {
 
     expect(result1.output.providerId).toBe('pay_abc');
     expect(result2.output.providerId).toBe('pay_abc');
-    
-    // If we mocked it, ensure the internal Razorpay SDK was only called ONCE
+
     if (!hasCredentials) {
       expect((provider as any).razorpay.payments.capture).toHaveBeenCalledTimes(1);
     }
   });
 
   it('3. Should trigger UNKNOWN state on network timeout and refuse blind retries', async () => {
-    // Force the provider to throw an ETIMEDOUT network error
+    
     vi.spyOn((provider as any).razorpay.payments, 'capture').mockRejectedValueOnce({
       code: 'ETIMEDOUT'
     });
@@ -134,13 +128,10 @@ describe('Phase 14: Payment Domain Contract & Provider Boundary', () => {
     const context = { sessionId: 'sess_3', executionId: 'exec_3', idempotencyKey: `idem_key_timeout_${crypto.randomUUID()}` };
     const input = { paymentId: 'pay_timeout', amount: 1000, currency: 'INR' };
 
-    // 1st Attempt -> Network Timeout -> UNKNOWN (Rethrows the timeout error)
     await expect(toolGateway.execute({ toolId: 'capture-payment', input, context })).rejects.toThrowError(/time/i);
 
-    // 2nd Attempt -> Idempotency Engine blocks it because it's UNKNOWN
     await expect(toolGateway.execute({ toolId: 'capture-payment', input, context })).rejects.toThrowError(/UNKNOWN/i);
 
-    // Provider capture should have only been attempted ONCE.
     expect((provider as any).razorpay.payments.capture).toHaveBeenCalledTimes(1);
   });
 });

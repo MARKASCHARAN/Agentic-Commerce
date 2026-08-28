@@ -36,7 +36,7 @@ export function createCapturePaymentTool(provider: PaymentProvider): Tool<Captur
         return result.data;
       } catch (error: any) {
         if (error.name === 'PaymentProviderTimeoutError' || error.name === 'PaymentUnknownError') {
-          // Bubble up exactly as is so the gateway/idempotency engine knows it's an UNKNOWN state
+          
           throw error;
         }
         throw new Error(`Capture failed: ${error.message}`);

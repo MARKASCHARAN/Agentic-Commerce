@@ -53,7 +53,6 @@ describe('ToolRegistry', () => {
     expect(list.find(m => m.id === 'test.a')).toBeDefined();
     expect(list.find(m => m.id === 'test.b')).toBeDefined();
 
-    // Verify mutating the returned array does not affect the registry
     list.pop();
     expect(registry.list()).toHaveLength(2);
   });
@@ -99,12 +98,11 @@ describe('ToolRegistry', () => {
   });
 
   it('should validate tool definition on registration (missing fields)', () => {
-    // Missing whole metadata
+    
     expect(() => {
       registry.register({ execute: async () => {} } as any);
     }).toThrowError(ToolValidationError);
 
-    // Missing input schema
     expect(() => {
       registry.register({
         metadata: { id: 'bad', name: 'Bad', description: 'desc', version: '1.0' },
@@ -113,7 +111,6 @@ describe('ToolRegistry', () => {
       } as any);
     }).toThrowError(/missing inputSchema/);
 
-    // Missing output schema
     expect(() => {
       registry.register({
         metadata: { id: 'bad', name: 'Bad', description: 'desc', version: '1.0' },
@@ -122,7 +119,6 @@ describe('ToolRegistry', () => {
       } as any);
     }).toThrowError(/missing outputSchema/);
 
-    // Missing adapter function
     expect(() => {
       registry.register({
         metadata: { id: 'bad', name: 'Bad', description: 'desc', version: '1.0' },

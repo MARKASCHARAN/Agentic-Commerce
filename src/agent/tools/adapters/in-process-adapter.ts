@@ -1,7 +1,6 @@
 import { ToolAdapter, ToolAdapterContext, ToolAdapterType } from './types';
 import { ToolAdapterError } from './errors';
 
-// Executes tools synchronously/asynchronously within the same Node.js process.
 export class InProcessToolAdapter<Input = unknown, Output = unknown> implements ToolAdapter<Input, Output> {
   public readonly type: ToolAdapterType = 'in-process';
 

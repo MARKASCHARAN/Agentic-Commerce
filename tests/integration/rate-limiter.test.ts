@@ -12,7 +12,7 @@ describe('RateLimiter Integration', () => {
     redis = new RedisService({ url: 'redis://localhost:6380' });
     await redis.connect();
     rateLimiter = new RateLimiter(redis);
-    // flushdb ensures clean slate for tests
+    
     const rawClient = (redis as any).client;
     await rawClient.flushdb();
   });
@@ -32,8 +32,7 @@ describe('RateLimiter Integration', () => {
 
   it('should reject requests exceeding limit with exact retryAfterMs', async () => {
     const agentId = randomUUID();
-    
-    // Consume 1 token 5 times
+
     for (let i = 0; i < 5; i++) {
       await rateLimiter.consume([{
         identity: { type: 'agent', id: agentId },
@@ -41,7 +40,6 @@ describe('RateLimiter Integration', () => {
       }]);
     }
 
-    // 6th should fail
     try {
       await rateLimiter.consume([{
         identity: { type: 'agent', id: agentId },
@@ -53,7 +51,7 @@ describe('RateLimiter Integration', () => {
       expect(e.metadata.limit).toBe(5);
       expect(e.metadata.remaining).toBeLessThan(1);
       expect(e.metadata.retryAfterMs).toBeGreaterThan(0);
-      expect(e.metadata.retryAfterMs).toBeLessThanOrEqual(1000); // 1 token / sec = max 1000ms
+      expect(e.metadata.retryAfterMs).toBeLessThanOrEqual(1000); 
     }
   });
 
@@ -61,28 +59,22 @@ describe('RateLimiter Integration', () => {
     const agentId = randomUUID();
     const sessionId = randomUUID();
 
-    // Session limit is 1, Agent limit is 10
     await rateLimiter.consume([
       { identity: { type: 'agent', id: agentId }, config: { capacity: 10, refillRatePerSecond: 10, failClosed: true } },
       { identity: { type: 'session', id: sessionId }, config: { capacity: 1, refillRatePerSecond: 0.1, failClosed: true } }
     ]);
 
-    // Second request will fail because session is empty.
-    // Agent should NOT be consumed.
     await expect(rateLimiter.consume([
       { identity: { type: 'agent', id: agentId }, config: { capacity: 10, refillRatePerSecond: 10, failClosed: true } },
       { identity: { type: 'session', id: sessionId }, config: { capacity: 1, refillRatePerSecond: 0.1, failClosed: true } }
     ])).rejects.toThrow(RateLimitExceededError);
 
-    // Verify Agent bucket still has 9 tokens, not 8.
-    // We can test this by consuming 9 times from agent bucket successfully.
     for (let i = 0; i < 9; i++) {
       await expect(rateLimiter.consume([
         { identity: { type: 'agent', id: agentId }, config: { capacity: 10, refillRatePerSecond: 10, failClosed: true } }
       ])).resolves.not.toThrow();
     }
-    
-    // 10th should fail
+
     await expect(rateLimiter.consume([
       { identity: { type: 'agent', id: agentId }, config: { capacity: 10, refillRatePerSecond: 10, failClosed: true } }
     ])).rejects.toThrow(RateLimitExceededError);
@@ -111,7 +103,7 @@ describe('RateLimiter Integration', () => {
   it('should fail-closed if Redis is down and config requires it', async () => {
     const badRedis = new RedisService({ url: 'redis://localhost:9999' });
     const badLimiter = new RateLimiter(badRedis);
-    // Ignore connect failure to simulate drop
+    
     await badRedis.connect().catch(() => {}); 
 
     await expect(badLimiter.consume([{
@@ -128,6 +120,6 @@ describe('RateLimiter Integration', () => {
     await expect(badLimiter.consume([{
       identity: { type: 'tool', id: 'fail-open-test' },
       config: { capacity: 10, refillRatePerSecond: 1, failClosed: false }
-    }])).resolves.not.toThrow(); // Successfully bypassed
+    }])).resolves.not.toThrow(); 
   });
 });

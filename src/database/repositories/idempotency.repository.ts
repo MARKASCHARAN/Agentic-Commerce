@@ -5,10 +5,6 @@ import { IdempotencyRecordDeletedError } from '../../agent/idempotency/errors';
 export class PrismaIdempotencyRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  /**
-   * Atomically reserves the idempotency key.
-   * If a record already exists for this scope + key, Prisma will throw a P2002 Unique Constraint error.
-   */
   async createReservation(
     key: string,
     scope: string,

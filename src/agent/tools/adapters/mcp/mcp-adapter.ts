@@ -8,7 +8,6 @@ import {
 import { MCPToolAdapterOptions } from './types';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
-// Maps a generic Tool to a specific MCP server tool using the official SDK.
 export class MCPToolAdapter<Input = unknown, Output = unknown> implements ToolAdapter<Input, Output> {
   public readonly type: ToolAdapterType = 'mcp';
 
@@ -17,7 +16,6 @@ export class MCPToolAdapter<Input = unknown, Output = unknown> implements ToolAd
       responseTransformer?: (result: CallToolResult) => Output;
     }
   ) {}
-
 
   async execute(input: Input, context: ToolAdapterContext): Promise<Output> {
     if (context.abortSignal?.aborted) {
@@ -56,7 +54,6 @@ export class MCPToolAdapter<Input = unknown, Output = unknown> implements ToolAd
       throw new MCPInvocationError(this.options.toolName, error.message || 'Unknown MCP error', error);
     }
   }
-
 
   private transformResponse(result: any): Output {
     if (this.options.responseTransformer) {

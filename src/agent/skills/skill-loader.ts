@@ -6,7 +6,6 @@ import { LoadedSkillDefinition } from './types';
 export class SkillLoader {
   constructor(private readonly rootDir: string) {}
 
-  // Prevents escaping the root directory (path traversal).
   private validatePath(targetPath: string): string {
     const resolvedPath = path.resolve(targetPath);
     const resolvedRoot = path.resolve(this.rootDir);
@@ -16,7 +15,6 @@ export class SkillLoader {
     }
     return resolvedPath;
   }
-
 
   async loadFromFile(skillFile: string): Promise<LoadedSkillDefinition> {
     const safePath = this.validatePath(skillFile);
@@ -43,12 +41,10 @@ export class SkillLoader {
     }
   }
 
-
   async load(skillDirectory: string): Promise<LoadedSkillDefinition> {
     const skillFile = path.join(skillDirectory, 'SKILL.md');
     return this.loadFromFile(skillFile);
   }
-
 
   async discover(searchDir: string): Promise<string[]> {
     const safeDir = this.validatePath(searchDir);
@@ -64,7 +60,7 @@ export class SkillLoader {
             await fs.access(potentialSkillMd);
             results.push(potentialSkillMd);
           } catch {
-            // No SKILL.md found in this directory, skip it silently
+            
           }
         }
       }

@@ -5,10 +5,8 @@ import {
   SkillValidationError
 } from './errors';
 
-// A deterministic registry that manages discovery and lookup for all Skills.
 export class SkillRegistry {
   private readonly skills = new Map<SkillId, Skill<unknown, unknown>>();
-
 
   register(skill: Skill<unknown, unknown>): void {
     this.validateSkill(skill);
@@ -17,7 +15,6 @@ export class SkillRegistry {
       throw new SkillAlreadyRegisteredError(skill.metadata.id);
     }
 
-    // Freeze capability declarations to prevent mutation after registration
     if (skill.tools) {
       Object.freeze(skill.tools);
       skill.tools.forEach(t => Object.freeze(t));
@@ -28,11 +25,9 @@ export class SkillRegistry {
     this.skills.set(skill.metadata.id, skill);
   }
 
-
   unregister(skillId: string): void {
     this.skills.delete(skillId as SkillId);
   }
-
 
   get(skillId: string): Skill<unknown, unknown> {
     const skill = this.skills.get(skillId as SkillId);
@@ -42,12 +37,10 @@ export class SkillRegistry {
     return skill;
   }
 
-
   has(skillId: string): boolean {
     return this.skills.has(skillId as SkillId);
   }
 
-  // Returns a read-only list of all registered skill metadata.
   list(): SkillMetadata[] {
     return Array.from(this.skills.values()).map(skill => ({ ...skill.metadata }));
   }

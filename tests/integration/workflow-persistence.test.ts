@@ -27,13 +27,12 @@ describe('Workflow Persistence & Optimistic Concurrency', () => {
   });
 
   afterAll(async () => {
-    // We now rely on unique keys generated for each test.
+    
   });
 
   it('should create, persist, transition, and recover state from database', async () => {
     const instanceId = randomUUID();
-    
-    // 1. Create workflow instance
+
     const initialInstanceData = await repository.create({
       id: instanceId,
       workflowId: genericDefinition.id,
@@ -44,18 +43,15 @@ describe('Workflow Persistence & Optimistic Concurrency', () => {
     expect(initialInstanceData.version).toBe(1);
     expect(initialInstanceData.currentState).toBe('START');
 
-    // 2. Load instance into State Machine
     const machine = new WorkflowStateMachine(
       genericDefinition,
       repository,
       initialInstanceData
     );
 
-    // 3. Transition and persist
     await machine.transition('PROCEED');
     expect(machine.getCurrentState()).toBe('PROCESSING');
 
-    // 4. Destroy machine and recover from DB
     const recoveredData = await repository.load(instanceId);
     expect(recoveredData).not.toBeNull();
     expect(recoveredData?.currentState).toBe('PROCESSING');
@@ -67,8 +63,7 @@ describe('Workflow Persistence & Optimistic Concurrency', () => {
       recoveredData!
     );
     expect(recoveredMachine.getCurrentState()).toBe('PROCESSING');
-    
-    // Continue transition to END
+
     await recoveredMachine.transition('FINISH');
     expect(recoveredMachine.getCurrentState()).toBe('END');
     
@@ -93,14 +88,11 @@ describe('Workflow Persistence & Optimistic Concurrency', () => {
     const machineA = new WorkflowStateMachine(genericDefinition, repository, dataCopyA!);
     const machineB = new WorkflowStateMachine(genericDefinition, repository, dataCopyB!);
 
-    // Machine A writes version 2
     await machineA.transition('PROCEED');
     expect(machineA.getCurrentState()).toBe('PROCESSING');
 
-    // Machine B attempts to transition from START (version 1) but database is at version 2
     await expect(machineB.transition('PROCEED')).rejects.toThrowError(/Optimistic concurrency conflict/);
 
-    // Machine B's memory state should remain untouched (atomic failure)
     expect(machineB.getCurrentState()).toBe('START');
   });
 
@@ -137,10 +129,8 @@ describe('Workflow Persistence & Optimistic Concurrency', () => {
 
     const machine = new WorkflowStateMachine(genericDefinition, repository, data);
 
-    // Invalid transition
     await expect(machine.transition('FINISH')).rejects.toThrowError(InvalidTransitionError);
 
-    // Ensure database remained untouched
     const recovered = await repository.load(instanceId);
     expect(recovered?.version).toBe(1);
     expect(recovered?.currentState).toBe('START');
@@ -161,7 +151,6 @@ describe('Workflow Persistence & Optimistic Concurrency', () => {
 
     await expect(machine.transition('PROCEED')).rejects.toThrowError('Database connection failed');
 
-    // State machine memory MUST NOT be mutated if persistence fails
     expect(machine.getCurrentState()).toBe('START');
   });
 

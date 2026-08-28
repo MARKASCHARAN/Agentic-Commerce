@@ -27,18 +27,13 @@ describe('Phase 13: Financial Concurrency & Durable Execution', () => {
   let toolGateway: ToolGateway;
   let workflowRepo: PrismaWorkflowRepository;
 
-  // Track mock execution counts
   let captureAdapterExecutionCount = 0;
   let refundAdapterExecutionCount = 0;
 
   beforeEach(async () => {
     prisma = new PrismaClient();
     await prisma.$connect();
-    
-    // Clean up - Removed to prevent cross-test isolation bugs
-    // We now rely on unique keys generated for each test.
 
-    // Initialize dependencies
     idempotencyRepo = new PrismaIdempotencyRepository(prisma);
     idempotencyEngine = new IdempotencyEngine(idempotencyRepo);
     
@@ -46,7 +41,7 @@ describe('Phase 13: Financial Concurrency & Durable Execution', () => {
     policyRegistry = new PolicyRegistry();
     policyEngine = new PolicyEngine(policyRegistry);
     
-    redisService = new RedisService({ host: 'localhost', port: 6380 }); // Port from docker-compose
+    redisService = new RedisService({ host: 'localhost', port: 6380 }); 
     rateLimiter = new RateLimiter(redisService, {
       agentConfig: { capacity: 1000, refillRatePerSecond: 1000 },
       sessionConfig: { capacity: 1000, refillRatePerSecond: 1000, failClosed: true },
@@ -68,7 +63,6 @@ describe('Phase 13: Financial Concurrency & Durable Execution', () => {
 
     workflowRepo = new PrismaWorkflowRepository();
 
-    // Register a mock policy that always allows execution
     policyRegistry.register({
       metadata: {
         id: 'mock-allow-policy' as any,
@@ -80,11 +74,9 @@ describe('Phase 13: Financial Concurrency & Durable Execution', () => {
       evaluate: async () => ({ decision: 'ALLOW' as any })
     } as any);
 
-    // Reset counters
     captureAdapterExecutionCount = 0;
     refundAdapterExecutionCount = 0;
 
-    // Register Mock Capture Tool
     toolRegistry.register({
       metadata: {
         id: 'mock-capture-payment' as any,
@@ -99,14 +91,13 @@ describe('Phase 13: Financial Concurrency & Durable Execution', () => {
       adapter: {
         execute: async (input: { paymentId: string }) => {
           captureAdapterExecutionCount++;
-          // Simulate network delay to allow concurrency to stack up
+          
           await new Promise(resolve => setTimeout(resolve, 30));
           return { success: true };
         }
       }
     } as any);
 
-    // Register Mock Refund Tool
     toolRegistry.register({
       metadata: {
         id: 'mock-refund-payment' as any,
@@ -154,18 +145,15 @@ describe('Phase 13: Financial Concurrency & Durable Execution', () => {
 
     const results = await Promise.allSettled(reqs);
 
-    // Exactly 1 adapter execution must have happened
     expect(captureAdapterExecutionCount).toBe(1);
 
-    // Some might succeed from cache if they were queued late enough, some fail with IN_PROGRESS
     const successes = results.filter(r => r.status === 'fulfilled');
     const inProgressFailures = results.filter(
       r => r.status === 'rejected' && r.reason?.cause instanceof IdempotencyInProgressError
     );
-    
-    // Everything should either be a success or an in-progress failure
+
     expect(successes.length + inProgressFailures.length).toBe(100);
-    expect(successes.length).toBeGreaterThanOrEqual(1); // At least the first one succeeds
+    expect(successes.length).toBeGreaterThanOrEqual(1); 
   });
 
   it('2. Concurrent Independent Operations: 100 independent executions', async () => {
@@ -180,7 +168,6 @@ describe('Phase 13: Financial Concurrency & Durable Execution', () => {
 
     const results = await Promise.allSettled(reqs);
 
-    // All 100 should execute independently because they have different idempotency keys
     expect(captureAdapterExecutionCount).toBe(100);
     
     const successes = results.filter(r => r.status === 'fulfilled');
@@ -195,7 +182,6 @@ describe('Phase 13: Financial Concurrency & Durable Execution', () => {
     const captureKey = `capture_${randomUUID()}`;
     const refundKey = `refund_${randomUUID()}`;
 
-    // First Capture
     await toolGateway.execute({
       toolId: 'mock-capture-payment',
       input: { paymentId },
@@ -203,17 +189,15 @@ describe('Phase 13: Financial Concurrency & Durable Execution', () => {
     });
     expect(captureAdapterExecutionCount).toBe(1);
 
-    // Second Capture with same key
     const result2 = await toolGateway.execute({
       toolId: 'mock-capture-payment',
       input: { paymentId },
       context: { ...baseContext, idempotencyKey: captureKey }
     });
-    // Execution count remains 1, returns cached result
+    
     expect(captureAdapterExecutionCount).toBe(1);
     expect(result2.output).toEqual({ success: true });
 
-    // First Refund
     await toolGateway.execute({
       toolId: 'mock-refund-payment',
       input: { paymentId, amount: 500 },
@@ -221,13 +205,12 @@ describe('Phase 13: Financial Concurrency & Durable Execution', () => {
     });
     expect(refundAdapterExecutionCount).toBe(1);
 
-    // Second Refund with same key
     const refundResult2 = await toolGateway.execute({
       toolId: 'mock-refund-payment',
       input: { paymentId, amount: 500 },
       context: { ...baseContext, idempotencyKey: refundKey }
     });
-    // Execution count remains 1, returns cached result
+    
     expect(refundAdapterExecutionCount).toBe(1);
     expect(refundResult2.output).toEqual({ success: true });
   });
@@ -236,7 +219,6 @@ describe('Phase 13: Financial Concurrency & Durable Execution', () => {
     const paymentId = `payment_${randomUUID()}`;
     const refundKey = `refund_conflict_${randomUUID()}`;
 
-    // Refund 500
     await toolGateway.execute({
       toolId: 'mock-refund-payment',
       input: { paymentId, amount: 500 },
@@ -244,14 +226,12 @@ describe('Phase 13: Financial Concurrency & Durable Execution', () => {
     });
     expect(refundAdapterExecutionCount).toBe(1);
 
-    // Refund 700 with SAME key
     await expect(toolGateway.execute({
       toolId: 'mock-refund-payment',
-      input: { paymentId, amount: 700 }, // Changed amount!
+      input: { paymentId, amount: 700 }, 
       context: { ...baseContext, idempotencyKey: refundKey }
     })).rejects.toThrowError(new RegExp(`Idempotency key ${refundKey} was reused`));
 
-    // Still only 1 execution
     expect(refundAdapterExecutionCount).toBe(1);
   });
 
@@ -278,15 +258,13 @@ describe('Phase 13: Financial Concurrency & Durable Execution', () => {
     const machine1 = new WorkflowStateMachine(wfDef, workflowRepo, { ...data });
     const machine2 = new WorkflowStateMachine(wfDef, workflowRepo, { ...data });
 
-    // Worker 1 transitions
     await machine1.transition('PROCESS');
-    
-    // Worker 2 attempts same transition from stale memory state
+
     await expect(machine2.transition('PROCESS')).rejects.toThrow(/Optimistic concurrency conflict/);
   });
 
   it('6. Crash Recovery (UNKNOWN state)', async () => {
-    // We can simulate a crash by overriding the adapter to throw a generic Network error
+    
     toolRegistry.register({
       metadata: {
         id: 'mock-crash-tool' as any,
@@ -301,14 +279,13 @@ describe('Phase 13: Financial Concurrency & Durable Execution', () => {
       adapter: {
         execute: async () => {
           captureAdapterExecutionCount++;
-          throw new Error('Connection Reset (Lost Response)'); // Unretryable UNKNOWN error
+          throw new Error('Connection Reset (Lost Response)'); 
         }
       }
     } as any);
 
     const idempotencyKey = `crash_key_${randomUUID()}`;
-    
-    // 1. Initial attempt executes but crashes
+
     await expect(toolGateway.execute({
       toolId: 'mock-crash-tool',
       input: {},
@@ -317,19 +294,17 @@ describe('Phase 13: Financial Concurrency & Durable Execution', () => {
 
     expect(captureAdapterExecutionCount).toBe(1);
 
-    // 2. The retry must explicitly block with UNKNOWN error, and NEVER invoke adapter again
     await expect(toolGateway.execute({
       toolId: 'mock-crash-tool',
       input: {},
       context: { ...baseContext, idempotencyKey }
     })).rejects.toThrowError(/UNKNOWN state/);
 
-    // Adapter execution count MUST remain exactly 1!
     expect(captureAdapterExecutionCount).toBe(1);
   });
 
   it('7. Database Failure', async () => {
-    // If Prisma is unavailable, it fails safely, no tool execution occurs
+    
     vi.spyOn(prisma.idempotencyRecord, 'create').mockRejectedValueOnce(new Error('DB Connection Refused'));
 
     await expect(toolGateway.execute({
@@ -338,16 +313,13 @@ describe('Phase 13: Financial Concurrency & Durable Execution', () => {
       context: { ...baseContext, idempotencyKey: `db_fail_key_${randomUUID()}` }
     })).rejects.toThrow('DB Connection Refused');
 
-    // Adapter MUST NOT execute if lock isn't acquired
     expect(captureAdapterExecutionCount).toBe(0);
   });
 
   it('8. Redis Failure', async () => {
-    // To make sure Redis fails immediately without buffering, we can mock it
+    
     vi.spyOn(rateLimiter, 'consume').mockRejectedValueOnce(new Error('Redis Connection Error'));
 
-    // The Rate Limiter is configured with sessionConfig.failClosed: true
-    // This should throw RateLimitInfrastructureError and NEVER hit the adapter
     await expect(toolGateway.execute({
       toolId: 'mock-capture-payment',
       input: { paymentId: 'payment_123' },

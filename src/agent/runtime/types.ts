@@ -51,11 +51,11 @@ export interface ExecutionIdentity {
 }
 
 export interface ExecutionBudget {
-  /** Enforced: Stops execution if accumulated tokens exceed this limit */
+  
   maxTokens?: number;
-  /** NOT YET ENFORCED: Future support for cost-based limits */
+  
   maxCostUsd?: number;
-  /** NOT YET ENFORCED: Future support for max tool/reasoning steps */
+  
   maxSteps?: number;
 }
 
@@ -71,7 +71,7 @@ export interface Execution {
 
 export interface ConversationContext {
   messages: any[];
-  /** Future: summaries, pinned items, etc. */
+  
 }
 
 export interface AgentContext {
@@ -99,15 +99,12 @@ export interface SkillExecutionResult<Output = unknown> {
   output: Output;
 }
 
-/** Dependency Inversion: Core boundary interfaces */
 export interface StateManager {
-  /** Initializes a new Execution record */
+  
   createExecution(execution: Execution): Promise<void>;
-  
-  /** Updates the execution state */
+
   saveState(executionId: string, state: ExecutionState): Promise<void>;
-  
-  /** Loads the scoped context required for this specific execution */
+
   loadContext(identity: ExecutionIdentity, task: string): Promise<AgentContext>;
 }
 

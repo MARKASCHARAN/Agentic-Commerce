@@ -10,7 +10,6 @@ import { ToolGateway, ToolRegistry, Tool, ToolId, InProcessToolAdapter } from '.
 import { PolicyAuthorizationError, PolicyApprovalRequiredError } from '../../src/agent/policy/errors';
 import { randomUUID } from 'crypto';
 
-// In-memory mock repository for tests to isolate DB from this test suite
 class MockWorkflowRepository {
   public store = new Map<string, any>();
   
@@ -60,7 +59,7 @@ describe('Workflow Executor Boundary', () => {
     events: ['START', 'FINISH'],
     transitions: [
       { from: 'CREATED', event: 'START', to: 'ACTIVE', requiredTool: 'test-tool' },
-      { from: 'ACTIVE', event: 'FINISH', to: 'COMPLETED' } // No tool required
+      { from: 'ACTIVE', event: 'FINISH', to: 'COMPLETED' } 
     ]
   });
 
@@ -145,7 +144,6 @@ describe('Workflow Executor Boundary', () => {
 
     expect(toolExecutionSpy).not.toHaveBeenCalled();
 
-    // Workflow state remains untouched
     const persisted = await repository.load(id);
     expect(persisted.currentState).toBe('CREATED');
     expect(persisted.version).toBe(1);
@@ -184,13 +182,11 @@ describe('Workflow Executor Boundary', () => {
     const id = randomUUID();
     await repository.create({ id, workflowId: 'wf-executor-test', currentState: 'CREATED', status: 'ACTIVE' });
 
-    // Mock repository to throw on save
     repository.saveTransition = vi.fn().mockRejectedValue(new Error('DB Offline'));
 
     await expect(executor.executeTransition(id, 'START', { arg: 'hello' }, identity))
       .rejects.toThrowError('DB Offline');
 
-    // Tool executed successfully, but persistence failed! This is the explicit boundary.
     expect(toolExecutionSpy).toHaveBeenCalled();
   });
 
@@ -198,20 +194,17 @@ describe('Workflow Executor Boundary', () => {
     const id = randomUUID();
     await repository.create({ id, workflowId: 'wf-executor-test', currentState: 'CREATED', status: 'ACTIVE' });
 
-    // We will do a race condition simulation:
-    // Change the DB AFTER executor loads but BEFORE saveTransition
     const originalLoad = repository.load.bind(repository);
     repository.load = async (loadId: string) => {
       const data = await originalLoad(loadId);
-      // Secretly increment version in DB out of band
+      
       await repository.saveTransition(loadId, data.version, 'COMPLETED');
-      return data; // Return old data
+      return data; 
     };
 
     await expect(executor.executeTransition(id, 'START', { arg: 'hello' }, identity))
       .rejects.toThrowError(/Optimistic concurrency conflict/);
 
-    // Tool WAS executed because it thought it was safe, but persistence failed.
     expect(toolExecutionSpy).toHaveBeenCalled();
   });
 

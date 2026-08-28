@@ -38,7 +38,7 @@ describe('SkillLoader', () => {
       const emptyPath = path.join(emptyDir, 'SKILL.md');
       
       await fs.mkdir(emptyDir, { recursive: true });
-      await fs.writeFile(emptyPath, '   \n   '); // Whitespace only
+      await fs.writeFile(emptyPath, '   \n   '); 
       
       try {
         await expect(loader.loadFromFile(emptyPath)).rejects.toThrowError(SkillDefinitionError);
@@ -62,8 +62,7 @@ describe('SkillLoader', () => {
   describe('discover', () => {
     it('should discover valid skills in the root directory', async () => {
       const discovered = await loader.discover(rootDir);
-      
-      // At least test-echo should be found
+
       expect(discovered.length).toBeGreaterThanOrEqual(1);
       expect(discovered).toContain(path.join(rootDir, 'test-echo', 'SKILL.md'));
     });
@@ -89,8 +88,7 @@ describe('SkillLoader', () => {
   describe('Registry Association', () => {
     it('can associate loaded instructions with a typescript skill execution contract', async () => {
       const loaded = await loader.load(path.join(rootDir, 'test-echo'));
-      
-      // Associate metadata
+
       const registeredSkill = { ...echoSkill, instructions: loaded.instructions, sourcePath: loaded.sourcePath };
       
       expect(registeredSkill.metadata.id).toBe('test.echo');

@@ -33,7 +33,7 @@ describe('Workflow Contract & Definition', () => {
   it('should throw WorkflowValidationError if definition is missing required fields', () => {
     expect(() => createWorkflowDefinition({
       id: 'wf-1' as WorkflowId,
-      // name missing
+      
       version: '1.0.0',
       inputSchema: z.object({}),
       initialState: 'START',

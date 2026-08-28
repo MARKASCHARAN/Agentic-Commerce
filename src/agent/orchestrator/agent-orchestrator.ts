@@ -3,13 +3,11 @@ import { ExecutionIdentity, TurnResult } from '../runtime/types';
 import { OrchestratorOptions } from './types';
 import { RateLimiter, RateLimiterRequest } from '../rate-limiting';
 
-// Coordinates multi-turn agent execution loops.
 export class AgentOrchestrator {
   constructor(
     private readonly runtime: AgentRuntime,
     private readonly rateLimiter?: RateLimiter
   ) {}
-
 
   async execute(identity: ExecutionIdentity, initialTask: string, options?: OrchestratorOptions): Promise<TurnResult> {
     if (this.rateLimiter && options?.rateLimits) {

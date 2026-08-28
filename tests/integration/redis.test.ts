@@ -3,7 +3,7 @@ import { RedisService } from '../../src/database/redis/redis-client';
 import { RedisOperationError, RedisConnectionError } from '../../src/database/redis/errors';
 
 describe('Redis Foundation Integration', () => {
-  // Use the port exposed in docker-compose.yml for tests
+  
   const redisUrl = 'redis://localhost:6380';
   let redis: RedisService;
 
@@ -29,8 +29,7 @@ describe('Redis Foundation Integration', () => {
     const result = await redis.get(key);
     
     expect(result).toBe(value);
-    
-    // Cleanup
+
     await redis.del(key);
   });
 
@@ -41,7 +40,6 @@ describe('Redis Foundation Integration', () => {
 
   it('should explicitly fail operations if disconnected (fail safely)', async () => {
     const isolatedRedis = new RedisService({ url: redisUrl });
-    // Intentionally NOT calling connect()
 
     await expect(isolatedRedis.ping()).rejects.toThrowError(RedisOperationError);
     await expect(isolatedRedis.set('k', 'v')).rejects.toThrowError(RedisOperationError);
@@ -51,5 +49,5 @@ describe('Redis Foundation Integration', () => {
     const badRedis = new RedisService({ url: 'redis://localhost:9999' });
     
     await expect(badRedis.connect()).rejects.toThrowError(RedisConnectionError);
-  }, 10000); // give it time to fail connection
+  }, 10000); 
 });

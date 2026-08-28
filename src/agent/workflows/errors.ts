@@ -1,7 +1,13 @@
 export class WorkflowError extends Error {
-  constructor(message: string, public readonly cause?: unknown) {
+  constructor(message: string, public readonly workflowId?: string) {
     super(message);
-    this.name = 'WorkflowError';
+    this.name = this.constructor.name;
+  }
+}
+
+export class StaleWorkflowWorkerError extends WorkflowError {
+  constructor(workflowId: string, public readonly instanceId: string, public readonly expectedVersion: number) {
+    super(`Optimistic concurrency conflict: Workflow instance ${instanceId} modified by another worker (expected version: ${expectedVersion})`, workflowId);
   }
 }
 
@@ -32,7 +38,8 @@ export class WorkflowValidationError extends WorkflowError {
     message: string,
     cause?: unknown
   ) {
-    super(`Workflow Validation Error [${workflowId}]: ${message}`, cause);
+    super(`Workflow Validation Error [${workflowId}]: ${message}`, workflowId);
     this.name = 'WorkflowValidationError';
+    if (cause) this.cause = cause;
   }
 }

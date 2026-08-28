@@ -7,7 +7,7 @@ export interface WorkflowInstanceData {
 }
 
 export interface WorkflowRepository {
-  create(data: Omit<WorkflowInstanceData, 'version' | 'id'> & { id?: string }): Promise<WorkflowInstanceData>;
-  load(id: string): Promise<WorkflowInstanceData | null>;
-  saveTransition(id: string, expectedVersion: number, newState: string): Promise<WorkflowInstanceData>;
+  create(data: Omit<WorkflowInstanceData, 'version' | 'id'> & { id?: string }, tx?: any): Promise<WorkflowInstanceData>;
+  load(id: string, tx?: any): Promise<WorkflowInstanceData | null>;
+  saveTransition(id: string, expectedVersion: number, newState: string, tx?: any): Promise<WorkflowInstanceData>;
 }

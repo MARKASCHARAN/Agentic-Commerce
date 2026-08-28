@@ -8,9 +8,11 @@ export class PrismaIdempotencyRepository {
   async createReservation(
     key: string,
     scope: string,
-    fingerprint: string
+    fingerprint: string,
+    tx?: any
   ): Promise<IdempotencyRecord> {
-    const record = await this.prisma.idempotencyRecord.create({
+    const client = tx || this.prisma;
+    const record = await client.idempotencyRecord.create({
       data: {
         idempotencyKey: key,
         scope,
@@ -18,12 +20,12 @@ export class PrismaIdempotencyRepository {
         status: 'IN_PROGRESS'
       }
     });
-    console.log(`[DIAGNOSTIC] createReservation: id=${record.id}, key=${key}, scope=${scope} at ${Date.now()}`);
     return this.mapToDomain(record);
   }
 
-  async getRecord(key: string, scope: string): Promise<IdempotencyRecord | null> {
-    const record = await this.prisma.idempotencyRecord.findUnique({
+  async getRecord(key: string, scope: string, tx?: any): Promise<IdempotencyRecord | null> {
+    const client = tx || this.prisma;
+    const record = await client.idempotencyRecord.findUnique({
       where: {
         scope_idempotencyKey: {
           scope,
@@ -31,14 +33,13 @@ export class PrismaIdempotencyRepository {
         }
       }
     });
-    console.log(`[DIAGNOSTIC] getRecord: key=${key}, scope=${scope}, found=${!!record} at ${Date.now()}`);
     return record ? this.mapToDomain(record) : null;
   }
 
-  async markCompleted(id: string, result: any): Promise<void> {
-    console.log(`[DIAGNOSTIC] markCompleted: id=${id} at ${Date.now()}`);
+  async markCompleted(id: string, result: any, tx?: any): Promise<void> {
+    const client = tx || this.prisma;
     try {
-      await this.prisma.idempotencyRecord.update({
+      await client.idempotencyRecord.update({
         where: { id },
         data: {
           status: 'COMPLETED',
@@ -54,10 +55,10 @@ export class PrismaIdempotencyRepository {
     }
   }
 
-  async markFailed(id: string, error: any): Promise<void> {
-    console.log(`[DIAGNOSTIC] markFailed: id=${id} at ${Date.now()}`);
+  async markFailed(id: string, error: any, tx?: any): Promise<void> {
+    const client = tx || this.prisma;
     try {
-      await this.prisma.idempotencyRecord.update({
+      await client.idempotencyRecord.update({
         where: { id },
         data: {
           status: 'FAILED',
@@ -73,10 +74,10 @@ export class PrismaIdempotencyRepository {
     }
   }
 
-  async markUnknown(id: string, error: any): Promise<void> {
-    console.log(`[DIAGNOSTIC] markUnknown: id=${id} at ${Date.now()}`);
+  async markUnknown(id: string, error?: any, tx?: any): Promise<void> {
+    const client = tx || this.prisma;
     try {
-      await this.prisma.idempotencyRecord.update({
+      await client.idempotencyRecord.update({
         where: { id },
         data: {
           status: 'UNKNOWN',
@@ -85,7 +86,6 @@ export class PrismaIdempotencyRepository {
         }
       });
     } catch (e: any) {
-      console.log(`[DIAGNOSTIC] markUnknown ERROR for id=${id}: ${e.message}`);
       if (e.code === 'P2025') {
         throw new IdempotencyRecordDeletedError(`Idempotency record ${id} was deleted before it could be marked UNKNOWN.`);
       }
@@ -108,3 +108,4 @@ export class PrismaIdempotencyRepository {
     };
   }
 }
+

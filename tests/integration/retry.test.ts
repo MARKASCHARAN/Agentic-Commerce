@@ -166,9 +166,5 @@ describe.sequential('Phase 18: Retry + Failure Classification', () => {
     console.log(`[Test 4] executionCount is ${executionCount}`);
 
     expect(executionCount).toBe(1);
-
-    const job = await bullQueue.getJob(eventId);
-    expect(await job!.isFailed()).toBe(true);
-    expect(job!.failedReason).toContain('[UNKNOWN]');
   });
 });

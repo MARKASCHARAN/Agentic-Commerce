@@ -150,7 +150,7 @@ export class AgentRuntime {
           const gatewayResult = await this.deps.toolGateway.execute({
             toolId: toolName,
             input: action.payload.input,
-            context: { ...identity, abortSignal: abortController.signal }
+            context: { ...identity, abortSignal: abortController.signal, idempotencyKey: identity.executionId }
           });
           
           finalResult = { action: action.type, payload: { toolName, result: gatewayResult.output }, usage: { totalTokens: modelRes.usage.totalTokens } };

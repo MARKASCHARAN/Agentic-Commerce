@@ -27,6 +27,8 @@ model Merchant {
   orders      CommerceOrder[]
   capabilities MerchantCapability[]
   guardrails  MerchantGuardrail?
+  products    Product[]
+  inventories Inventory[]
   user        User            @relation(fields: [userId], references: [id])
 }
 
@@ -375,4 +377,31 @@ model MerchantGuardrail {
   updatedAt                   DateTime @updatedAt
   
   merchant Merchant @relation(fields: [merchantId], references: [id])
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  merchantId  String
+  name        String
+  description String?
+  priceMinor  Int
+  currency    String   @default("INR")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+  inventory Inventory?
+}
+
+model Inventory {
+  id         String   @id @default(uuid())
+  merchantId String
+  productId  String   @unique
+  quantity   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
 }

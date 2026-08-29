@@ -42,6 +42,8 @@ export interface Tool<Input = unknown, Output = unknown> {
     id: string;
   };
 
+  requiredCapabilities?: string[];
+
   idempotency?: {
     required: boolean;
     scope: string;

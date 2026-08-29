@@ -5,6 +5,10 @@ import { PolicyEngine } from '../policy/policy-engine';
 import { PolicyAuthorizationError, PolicyApprovalRequiredError } from '../policy/errors';
 import { RateLimiter, RateLimitConfig } from '../rate-limiting';
 import { IdempotencyEngine } from '../idempotency/engine';
+import { MerchantGuardrailRepository } from '../../database/repositories/merchant-guardrail.repository';
+import { RiskGate, RiskEvaluationError } from '../risk';
+import { MerchantCapabilityResolver } from '../intelligence/capability-resolver';
+import { MerchantCapability } from '../intelligence/types';
 
 export interface ToolGatewayDependencies {
   toolRegistry: ToolRegistry;
@@ -15,6 +19,9 @@ export interface ToolGatewayDependencies {
   rateLimiter?: RateLimiter;
   rateLimitConfigMap?: ReadonlyMap<string, RateLimitConfig>;
   idempotencyEngine?: IdempotencyEngine;
+  guardrailRepository?: MerchantGuardrailRepository;
+  capabilityResolver?: MerchantCapabilityResolver;
+  riskGate?: RiskGate;
 }
 
 export class ToolGateway {
@@ -58,6 +65,7 @@ export class ToolGateway {
       executionId,
       agentId,
       sessionId,
+      merchantId: context.merchantId,
       abortSignal: abortController.signal
     };
 
@@ -95,6 +103,39 @@ export class ToolGateway {
 
       this.deps.eventEmitter.emit('POLICY_CHECK_STARTED', { ...eventPayloadBase, policyId: tool.policy.id });
 
+      // 1. CAPABILITY RESOLUTION
+      if (tool.requiredCapabilities && tool.requiredCapabilities.length > 0) {
+        if (!context.merchantId) {
+          throw new PolicyAuthorizationError('system.fail_closed', `Tool ${toolId} requires a merchant identity for capability validation.`);
+        }
+        if (!this.deps.capabilityResolver) {
+          throw new PolicyAuthorizationError('system.fail_closed', `Tool ${toolId} requires capability checking but no capability resolver was configured.`);
+        }
+        
+        const capabilities = await this.deps.capabilityResolver.resolve(context.merchantId);
+        for (const req of tool.requiredCapabilities) {
+          if (!capabilities.has(req as MerchantCapability)) {
+            throw new PolicyAuthorizationError('system.capability_denied', `Merchant lacks required capability: ${req}`);
+          }
+        }
+      }
+
+      // 2. GUARDRAIL RESOLUTION
+      let guardrails = undefined;
+      // If a tool has a policy, it may need guardrails (especially financial policies)
+      // ToolGateway enforces that if guardrails are supported by the system and we have a merchant context, they must be loaded.
+      if (tool.policy?.id) {
+        if (!context.merchantId) {
+          throw new PolicyAuthorizationError('system.fail_closed', `Tool ${toolId} policy execution requires a merchant identity.`);
+        }
+        if (this.deps.guardrailRepository) {
+          guardrails = await this.deps.guardrailRepository.getGuardrails(context.merchantId);
+          if (!guardrails) {
+            throw new PolicyAuthorizationError('system.fail_closed', `Guardrails required for policy execution but missing for merchant ${context.merchantId}.`);
+          }
+        }
+      }
+
       // [FINANCIAL SAFETY]
       // Acts as an absolute firewall between probabilistic LLM intent and deterministic execution.
       // We validate cryptographic capabilities and merchant-defined constraints strictly before
@@ -102,7 +143,7 @@ export class ToolGateway {
       const policyDecision = await this.deps.policyEngine.evaluate(
         tool.policy.id,
         validatedInput,
-        { agentId, sessionId, executionId }
+        { agentId, sessionId, executionId, merchantId: context.merchantId, guardrails }
       );
 
       this.deps.eventEmitter.emit('POLICY_CHECK_COMPLETED', {
@@ -117,6 +158,32 @@ export class ToolGateway {
 
       if (policyDecision.result === 'REQUIRE_APPROVAL') {
         throw new PolicyApprovalRequiredError(tool.policy.id, policyDecision.requiredApprovals || [], policyDecision.reason);
+      }
+
+      // 4. RISK GATE RESOLUTION
+      if (this.deps.riskGate) {
+        const riskContext = {
+          agentId: agentId || 'unknown',
+          sessionId,
+          executionId,
+          merchantId: context.merchantId!,
+          amountMinor: (validatedInput as any)?.amountMinor
+        };
+        const riskDecision = await this.deps.riskGate.evaluate(toolId, validatedInput, riskContext);
+
+        this.deps.eventEmitter.emit('RISK_CHECK_COMPLETED', {
+          ...eventPayloadBase,
+          decision: riskDecision
+        });
+
+        if (riskDecision.status === 'DENY') {
+          throw new RiskEvaluationError(riskDecision.reason || 'Risk Gate denied execution', riskDecision);
+        }
+
+        if (riskDecision.status === 'REVIEW') {
+          // A Risk REVIEW forces an approval workflow
+          throw new PolicyApprovalRequiredError('risk-gate', ['risk-team'], riskDecision.reason || 'Risk requires manual review');
+        }
       }
 
       if (abortController.signal.aborted) {
@@ -172,10 +239,11 @@ export class ToolGateway {
       this.deps.eventEmitter.emit('TOOL_FAILED', { ...eventPayloadBase, error });
 
       if (
-        error instanceof ToolValidationError ||
-        error instanceof ToolNotFoundError ||
-        error instanceof PolicyAuthorizationError ||
-        error instanceof PolicyApprovalRequiredError
+        error instanceof ToolValidationError || error.name === 'ToolValidationError' ||
+        error instanceof ToolNotFoundError || error.name === 'ToolNotFoundError' ||
+        error instanceof PolicyAuthorizationError || error.name === 'PolicyAuthorizationError' ||
+        error instanceof PolicyApprovalRequiredError || error.name === 'PolicyApprovalRequiredError' ||
+        error instanceof RiskEvaluationError || error.name === 'RiskEvaluationError'
       ) {
         throw error;
       }

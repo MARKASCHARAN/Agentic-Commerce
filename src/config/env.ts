@@ -38,5 +38,8 @@ export const env = {
   providers: {
     groqApiKey: process.env.GROQ_API_KEY,
     openaiApiKey: process.env.OPENAI_API_KEY,
+    razorpayKeyId: process.env.RAZORPAY_KEY_ID,
+    razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET,
+    razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET,
   },
 } as const;

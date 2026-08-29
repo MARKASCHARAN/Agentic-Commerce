@@ -5,7 +5,7 @@ import { InProcessToolAdapter } from '../adapters/in-process-adapter';
 
 export interface CapturePaymentInput {
   paymentId: string;
-  amount: number;
+  amountMinor: number;
   currency: string;
 }
 
@@ -19,17 +19,18 @@ export function createCapturePaymentTool(provider: PaymentProvider): Tool<Captur
     },
     inputSchema: z.object({
       paymentId: z.string(),
-      amount: z.number(),
+      amountMinor: z.number().int().positive(),
       currency: z.string()
     }),
     outputSchema: z.any(),
     policy: { id: 'financial-policy' },
+    requiredCapabilities: ['payment.create'],
     idempotency: { required: true, scope: 'payment_capture' },
     adapter: new InProcessToolAdapter<CapturePaymentInput, any>(async (input, context) => {
       try {
         const result = await provider.capturePayment({
           paymentId: input.paymentId,
-          amount: input.amount,
+          amount: input.amountMinor,
           currency: input.currency
         }, context.idempotencyKey);
         

@@ -128,7 +128,8 @@ describe('Phase 13: Financial Concurrency & Durable Execution', () => {
   const baseContext = {
     agentId: 'agent-1',
     sessionId: 'session-1',
-    executionId: 'exec-1'
+    executionId: 'exec-1',
+    merchantId: 'merchant-1'
   };
 
   it('1. Concurrent Same Operation: 100 requests exactly 1 execution', async () => {

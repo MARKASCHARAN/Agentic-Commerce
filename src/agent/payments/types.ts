@@ -12,6 +12,13 @@ export interface CaptureRequest {
   currency: string;
 }
 
+export interface CreateOrderRequest {
+  amount: number;
+  currency: string;
+  receipt?: string;
+  notes?: Record<string, string>;
+}
+
 export interface RefundRequest {
   paymentId: string;
   amount?: number;

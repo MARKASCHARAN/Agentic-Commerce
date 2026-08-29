@@ -33,6 +33,9 @@ export class RazorpayWebhookAdapter {
 
     switch (event) {
       case 'payment.captured':
+      case 'order.paid':
+        // order.paid is structurally similar and can be mapped to payment.captured
+        // since the payment entity is included in the payload
         eventType = 'payment.captured';
         providerEntityId = payload.payload.payment.entity.id;
         idempotencyKey = payload.payload.payment.entity.notes?.idempotency_key;

@@ -99,6 +99,7 @@ export class CommerceProtocolHandler {
           agentId: envelope.sender,
           sessionId: envelope.sessionId,
           userId: envelope.sender, // Caller
+          merchantId: envelope.recipient,
           idempotencyKey: `payment-${envelope.correlationId}`
         }
       });

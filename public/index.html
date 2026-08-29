@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Agentic Commerce E2E</title>
+  <style>
+    body { font-family: sans-serif; display: flex; flex-direction: row; margin: 0; padding: 0; height: 100vh; }
+    #chat-container { width: 50%; border-right: 1px solid #ccc; padding: 20px; display: flex; flex-direction: column; }
+    #dashboard-container { width: 50%; padding: 20px; background: #f9f9f9; }
+    #chat-log { flex: 1; overflow-y: auto; border: 1px solid #eee; padding: 10px; margin-bottom: 10px; }
+    .message { margin-bottom: 10px; }
+    .buyer { color: blue; }
+    .agent { color: green; }
+    .system { color: gray; font-size: 0.9em; }
+    .checkout-btn { background: #4285F4; color: white; border: none; padding: 10px; cursor: pointer; border-radius: 4px; margin-top: 5px; }
+    input[type="text"] { padding: 10px; width: calc(100% - 100px); }
+    button { padding: 10px; width: 80px; }
+  </style>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</head>
+<body>
+
+  <div id="chat-container">
+    <h2>Buyer UI</h2>
+    <div id="chat-log"></div>
+    <div style="display: flex;">
+      <input type="text" id="chat-input" placeholder="Say something (e.g., 'Show me running shoes')" />
+      <button onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+
+  <div id="dashboard-container">
+    <h2>Merchant Dashboard</h2>
+    <button onclick="refreshDashboard()">Refresh</button>
+    <pre id="dashboard-data">Loading...</pre>
+  </div>
+
+  <script>
+    async function refreshDashboard() {
+      try {
+        const res = await fetch('/api/dashboard');
+        const data = await res.json();
+        document.getElementById('dashboard-data').textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        document.getElementById('dashboard-data').textContent = 'Error loading dashboard.';
+      }
+    }
+    
+    function appendMessage(role, text) {
+      const log = document.getElementById('chat-log');
+      const div = document.createElement('div');
+      div.className = `message ${role}`;
+      div.innerHTML = `<strong>${role.toUpperCase()}:</strong> ${text}`;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+      
+      input.value = '';
+      appendMessage('buyer', text);
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text })
+        });
+        const data = await res.json();
+        
+        appendMessage('agent', data.response);
+
+        if (data.checkoutData) {
+          const btn = document.createElement('button');
+          btn.className = 'checkout-btn';
+          btn.textContent = `Pay ${data.checkoutData.currency} ${(data.checkoutData.amountMinor / 100).toFixed(2)}`;
+          btn.onclick = () => openRazorpay(data.checkoutData);
+          document.getElementById('chat-log').appendChild(btn);
+        }
+      } catch (e) {
+        appendMessage('system', 'Error connecting to agent backend.');
+      }
+    }
+
+    function openRazorpay(checkoutData) {
+      const options = {
+        key: checkoutData.razorpayKeyId, // The frontend receives ONLY the key ID
+        amount: checkoutData.amountMinor,
+        currency: checkoutData.currency,
+        name: "Agentic Sports Demo",
+        description: "Test Transaction",
+        order_id: checkoutData.razorpayOrderId,
+        handler: function (response) {
+          appendMessage('system', `Payment successful! Payment ID: ${response.razorpay_payment_id}`);
+          appendMessage('system', 'Waiting for webhook to reconcile revenue...');
+          // Note: the backend will reconcile via webhook. We just poll dashboard to see it.
+          setTimeout(refreshDashboard, 3000);
+        },
+        prefill: {
+          name: "Test Buyer",
+          email: "buyer@example.com",
+        },
+        theme: {
+          color: "#3399cc"
+        }
+      };
+      
+      if (!window.Razorpay) {
+        throw new Error("Razorpay Checkout SDK is not loaded");
+      }
+
+      console.log({
+        razorpayConstructorAvailable: typeof window.Razorpay,
+        keyPresent: Boolean(options.key),
+        keyPrefix: options.key ? options.key.slice(0, 9) : null,
+        orderId: options.order_id,
+        amount: options.amount,
+        currency: options.currency
+      });
+
+      appendMessage('system', 'Diagnostics printed to console. Check DevTools.');
+
+      const rzp = new Razorpay(options);
+      rzp.on('payment.failed', function (response){
+          appendMessage('system', `Payment failed: ${response.error.description}`);
+      });
+      rzp.open();
+    }
+
+    // Initial load
+    refreshDashboard();
+  </script>
+</body>
+</html>

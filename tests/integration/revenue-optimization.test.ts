@@ -27,6 +27,9 @@ describe.sequential('Phase 20: Measurable Revenue Optimization', () => {
 
     await prisma.revenueOpportunityLog.deleteMany({});
     await prisma.outboxEvent.deleteMany({});
+    await prisma.paymentIntent.deleteMany({});
+    await prisma.commerceItem.deleteMany({});
+    await prisma.commerceOrder.deleteMany({});
     await prisma.session.deleteMany({});
 
     queue = new Queue(queueName, { connection: { url: redisUrl } });

@@ -8,7 +8,8 @@ import {
   PaymentProvider,
   PaymentProviderError,
   PaymentUnknownError,
-  PaymentProviderTimeoutError
+  PaymentProviderTimeoutError,
+  CreateOrderRequest
 } from '../../agent/payments';
 import { WebhookEvent } from '../../agent/payments/webhook';
 import { RazorpayWebhookAdapter } from './razorpay.webhook';
@@ -60,6 +61,36 @@ export class RazorpayProvider implements PaymentProvider {
         },
         providerRawStatus: payment.status,
         providerRawResponse: payment
+      };
+    } catch (error) {
+      throw this.mapError(error);
+    }
+  }
+
+  async createOrder(request: CreateOrderRequest, idempotencyKey?: string): Promise<ProviderResult<any>> {
+    try {
+      const params: any = {
+        amount: request.amount,
+        currency: request.currency,
+      };
+
+      if (request.receipt) params.receipt = request.receipt;
+      
+      params.notes = { ...request.notes };
+      if (idempotencyKey) params.notes.idempotency_key = idempotencyKey;
+
+      const order = await this.razorpay.orders.create(params);
+      
+      return {
+        success: true,
+        data: {
+          providerId: order.id,
+          amount: typeof order.amount === 'number' ? order.amount : parseInt(order.amount as any, 10),
+          currency: order.currency,
+          status: order.status
+        },
+        providerRawStatus: order.status,
+        providerRawResponse: order
       };
     } catch (error) {
       throw this.mapError(error);

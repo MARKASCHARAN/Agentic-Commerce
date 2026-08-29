@@ -102,7 +102,7 @@ describe('Workflow Executor Boundary', () => {
     registry.register(testTool);
   });
 
-  const identity = { executionId: 'exec-1', agentId: 'agent-1', sessionId: 'sess-1' };
+  const identity = { executionId: 'exec-1', agentId: 'agent-1', sessionId: 'sess-1', merchantId: 'merchant-1' };
 
   it('should validate transition, execute tool, and persist success', async () => {
     const id = randomUUID();

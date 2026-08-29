@@ -52,7 +52,8 @@ describe('ToolGateway', () => {
   const baseContext = {
     executionId: 'exec-1',
     agentId: 'agent-1',
-    sessionId: 'session-1'
+    sessionId: 'session-1',
+    merchantId: 'merchant-1'
   };
 
   it('should successfully execute a tool, validate I/O, and emit lifecycle events', async () => {

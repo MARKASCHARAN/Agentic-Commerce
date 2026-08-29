@@ -16,6 +16,9 @@ export interface ToolMetadata {
 export interface ToolExecutionContext extends ExecutionIdentity {
   abortSignal?: AbortSignal;
   idempotencyKey?: string;
+  revenueOpportunity?: any;
+  cartProductIds?: string[];
+  conversation?: any;
 }
 
 export interface ToolExecutionRequest<Input = unknown> {

@@ -14,7 +14,7 @@ export class GroqAdapter implements ModelProvider {
 
   async generate(options: GenerateOptions): Promise<ModelResponse> {
     const startTime = Date.now();
-    const modelId = options.model || 'llama3-8b-8192';
+    const modelId = options.model || 'openai/gpt-oss-120b';
     
     const result = await generateText({
       model: this.groq(modelId),
@@ -42,7 +42,7 @@ export class GroqAdapter implements ModelProvider {
   }
 
   async stream(options: GenerateOptions): Promise<ModelStreamResponse> {
-    const modelId = options.model || 'llama3-8b-8192';
+    const modelId = options.model || 'openai/gpt-oss-120b';
     
     const result = await streamText({
       model: this.groq(modelId),
@@ -62,7 +62,7 @@ export class GroqAdapter implements ModelProvider {
 
   async structured<T>(options: StructuredOptions<T>): Promise<ModelStructuredResponse<T>> {
     const startTime = Date.now();
-    const modelId = options.model || 'llama3-8b-8192';
+    const modelId = options.model || 'openai/gpt-oss-120b';
     
     const result = await generateObject({
       model: this.groq(modelId),
@@ -83,6 +83,39 @@ export class GroqAdapter implements ModelProvider {
         completionTokens: result.usage.completionTokens ?? (result.usage as any).outputTokens ?? 0,
         // @ts-ignore
         totalTokens: result.usage.totalTokens ?? ((result.usage as any).inputTokens || 0) + ((result.usage as any).outputTokens || 0),
+      },
+      latencyMs: Date.now() - startTime,
+      provider: this.name,
+      model: modelId,
+    };
+  }
+
+  async chat(options: import('../../types').ChatOptions): Promise<import('../../types').ChatResponse> {
+    const startTime = Date.now();
+    const modelId = options.model || 'openai/gpt-oss-120b';
+    
+    const result = await generateText({
+      model: this.groq(modelId),
+      messages: options.messages as any,
+      system: options.system,
+      temperature: options.temperature,
+      // @ts-ignore
+      maxTokens: options.maxTokens,
+      tools: options.tools,
+      maxSteps: options.maxSteps || 1
+    });
+
+    return {
+      text: result.text,
+      toolCalls: result.toolCalls,
+      toolResults: result.toolResults,
+      usage: {
+        // @ts-ignore
+        promptTokens: result.usage?.promptTokens ?? (result.usage as any)?.inputTokens ?? 0,
+        // @ts-ignore
+        completionTokens: result.usage?.completionTokens ?? (result.usage as any)?.outputTokens ?? 0,
+        // @ts-ignore
+        totalTokens: result.usage?.totalTokens ?? ((result.usage as any)?.inputTokens || 0) + ((result.usage as any)?.outputTokens || 0),
       },
       latencyMs: Date.now() - startTime,
       provider: this.name,

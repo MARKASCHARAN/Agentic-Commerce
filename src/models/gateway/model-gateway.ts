@@ -125,4 +125,8 @@ export class ModelGateway {
   async structured<T>(options: StructuredOptions<T>): Promise<ModelStructuredResponse<T>> {
     return this.executeWithFallback((provider) => provider.structured(options));
   }
+
+  async chat(options: import('./types').ChatOptions): Promise<import('./types').ChatResponse> {
+    return this.executeWithFallback((provider) => provider.chat(options));
+  }
 }

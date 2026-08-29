@@ -28,14 +28,126 @@ describe.sequential('Phase 19: Merchant Revenue Intelligence Layer', () => {
       }
     } as any;
 
-    engine = new RevenueIntelligenceEngine(policyEngine, modelGateway, mockResolver);
+    const mockPrisma = {
+      product: {
+        findUnique: async ({ where: { id } }: any) => {
+          if (id === 'prod_shoes_01') {
+            return {
+              id: 'prod_shoes_01',
+              name: 'Running Shoes',
+              priceMinor: 500000,
+              currency: 'INR',
+              active: true,
+              description: '<!-- rel: ["prod_socks_01"] --> Premium Running Shoes',
+              merchantId: 'merchant-d2c'
+            };
+          }
+          if (id === 'prod_socks_01') {
+            return {
+              id: 'prod_socks_01',
+              name: 'Running Socks',
+              priceMinor: 69900,
+              currency: 'INR',
+              active: true,
+              description: 'Running Socks description',
+              merchantId: 'merchant-d2c'
+            };
+          }
+          if (id === 'plan-starter') {
+            return {
+              id: 'plan-starter',
+              name: 'Starter Plan',
+              priceMinor: 49900,
+              currency: 'USD',
+              active: true,
+              description: '<!-- seatLimit: 5 --> Starter Plan description',
+              merchantId: 'merchant-saas'
+            };
+          }
+          if (id === 'plan-growth') {
+            return {
+              id: 'plan-growth',
+              name: 'Growth Plan',
+              priceMinor: 99900,
+              currency: 'USD',
+              active: true,
+              description: '<!-- seatLimit: 15 --> Growth Plan description',
+              merchantId: 'merchant-saas'
+            };
+          }
+          if (id === 'prod-chairs-1') {
+            return {
+              id: 'prod-chairs-1',
+              name: 'Office Chairs',
+              priceMinor: 500000,
+              currency: 'USD',
+              active: true,
+              description: '<!-- bulk: { "threshold": 100, "discountMinor": 50000 } --> Office Chairs',
+              merchantId: 'merchant-b2b'
+            };
+          }
+          return null;
+        },
+        findMany: async ({ where }: any) => {
+          const merchantId = where?.merchantId;
+          const id = where?.id;
+          const active = where?.active;
+          
+          if (merchantId === 'merchant-saas' && active) {
+            return [
+              {
+                id: 'plan-starter',
+                name: 'Starter Plan',
+                priceMinor: 49900,
+                currency: 'USD',
+                active: true,
+                description: '<!-- seatLimit: 5 --> Starter Plan description',
+                merchantId: 'merchant-saas'
+              },
+              {
+                id: 'plan-growth',
+                name: 'Growth Plan',
+                priceMinor: 99900,
+                currency: 'USD',
+                active: true,
+                description: '<!-- seatLimit: 15 --> Growth Plan description',
+                merchantId: 'merchant-saas'
+              }
+            ];
+          }
+
+          const ids = id?.in || [];
+          const list = [];
+          if (ids.includes('prod_socks_01') && merchantId === 'merchant-d2c' && active) {
+            list.push({
+              id: 'prod_socks_01',
+              name: 'Running Socks',
+              priceMinor: 69900,
+              currency: 'INR',
+              active: true,
+              description: 'Running Socks description',
+              merchantId: 'merchant-d2c'
+            });
+          }
+          return list;
+        }
+      },
+      revenueOpportunityLog: {
+        findFirst: async () => null,
+      },
+      cart: {
+        findUnique: async () => null,
+      }
+    } as any;
+
+    engine = new RevenueIntelligenceEngine(policyEngine, modelGateway, mockResolver, mockPrisma);
   });
 
   it('1. D2C E-commerce: Detects valid cross-sell opportunity and rejects out-of-stock items', async () => {
     const merchantId = 'merchant-d2c';
     const context = {
       sessionId: 'sess-1',
-      cartProductIds: ['prod-shoes-1'], 
+      cartProductIds: ['prod_shoes_01'], 
     };
 
     const opportunity = await engine.analyze(merchantId, context);
@@ -43,10 +155,10 @@ describe.sequential('Phase 19: Merchant Revenue Intelligence Layer', () => {
     expect(opportunity).not.toBeNull();
     
     expect(opportunity!.type).toBe('CROSS_SELL');
-    expect(opportunity!.affectedResources).toContain('prod-socks-1');
+    expect(opportunity!.affectedResources).toContain('prod_socks_01');
     expect(opportunity!.proposedAction.actionType).toBe('ADD_PRODUCT');
-    expect(opportunity!.proposedAction.resourceId).toBe('prod-socks-1');
-    expect(opportunity!.proposedAction.priceMinor).toBe(699); 
+    expect(opportunity!.proposedAction.resourceId).toBe('prod_socks_01');
+    expect(opportunity!.proposedAction.priceMinor).toBe(69900); 
     expect(opportunity!.policyDecision).toBe('ALLOWED');
     expect(opportunity!.evidence).toContain('AI selected:'); 
   });

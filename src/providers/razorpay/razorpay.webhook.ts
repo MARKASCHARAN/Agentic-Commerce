@@ -45,6 +45,11 @@ export class RazorpayWebhookAdapter {
         providerEntityId = payload.payload.payment.entity.id;
         idempotencyKey = payload.payload.payment.entity.notes?.idempotency_key;
         break;
+      case 'payment.authorized':
+        eventType = 'payment.authorized';
+        providerEntityId = payload.payload.payment.entity.id;
+        idempotencyKey = payload.payload.payment.entity.notes?.idempotency_key;
+        break;
       case 'refund.processed':
         eventType = 'refund.processed';
         providerEntityId = payload.payload.refund.entity.payment_id;

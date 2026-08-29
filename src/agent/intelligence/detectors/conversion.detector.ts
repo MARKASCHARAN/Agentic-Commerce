@@ -1,12 +1,11 @@
 import crypto from 'crypto';
 import { OpportunityDetector, RevenueOpportunity, MerchantCapabilities, MerchantCapability } from '../types';
+import { PrismaClient } from '@prisma/client';
 
 export class ConversionDetector implements OpportunityDetector {
   readonly requires: MerchantCapability[] = ['inventory', 'pricing', 'negotiation'];
 
-  private readonly inventoryPriceBreaks: Record<string, { threshold: number, discountMinor: number, basePriceMinor: number }> = {
-    'prod-chairs-1': { threshold: 100, discountMinor: 50000, basePriceMinor: 500000 }, 
-  };
+  constructor(private readonly prisma?: PrismaClient) {}
 
   async detect(merchantId: string, capabilities: MerchantCapabilities, context: Record<string, any>): Promise<RevenueOpportunity[]> {
     const opportunities: RevenueOpportunity[] = [];
@@ -15,12 +14,31 @@ export class ConversionDetector implements OpportunityDetector {
     const requestedQuantity = context.requestedQuantity || 0;
     const sessionId = context.sessionId;
 
-    if (requestedProduct && this.inventoryPriceBreaks[requestedProduct]) {
-      const productPolicy = this.inventoryPriceBreaks[requestedProduct];
+    if (!this.prisma || !requestedProduct) {
+      return [];
+    }
 
-      if (requestedQuantity >= productPolicy.threshold) {
-        const totalBase = productPolicy.basePriceMinor * requestedQuantity;
-        const totalDiscount = productPolicy.discountMinor * requestedQuantity;
+    try {
+      const product = await this.prisma.product.findUnique({
+        where: { id: requestedProduct }
+      });
+
+      if (!product || !product.active || product.merchantId !== merchantId || !product.description) {
+        return [];
+      }
+
+      const match = product.description.match(/<!--\s*bulk:\s*({[^}]+})\s*-->/);
+      if (!match) {
+        return [];
+      }
+
+      const bulkPolicy = JSON.parse(match[1]);
+      const threshold = bulkPolicy.threshold;
+      const discountMinor = bulkPolicy.discountMinor;
+
+      if (requestedQuantity >= threshold) {
+        const totalBase = product.priceMinor * requestedQuantity;
+        const totalDiscount = discountMinor * requestedQuantity;
         const totalProposed = totalBase - totalDiscount;
 
         opportunities.push({
@@ -36,11 +54,13 @@ export class ConversionDetector implements OpportunityDetector {
             actionType: 'APPLY_DISCOUNT',
             resourceId: requestedProduct,
             quantity: requestedQuantity,
-            priceMinor: productPolicy.basePriceMinor - productPolicy.discountMinor, 
-            discountMinor: productPolicy.discountMinor,
+            priceMinor: product.priceMinor - discountMinor, 
+            discountMinor,
           }
         });
       }
+    } catch {
+      // safe fallback if DB fails or JSON parsing fails
     }
 
     return opportunities;

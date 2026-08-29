@@ -1,4 +1,5 @@
 export type WebhookEventType = 
+  | 'payment.authorized'
   | 'payment.captured'
   | 'payment.failed'
   | 'refund.processed'

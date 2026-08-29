@@ -1,13 +1,11 @@
 import crypto from 'crypto';
 import { OpportunityDetector, RevenueOpportunity, MerchantCapabilities, MerchantCapability } from '../types';
+import { PrismaClient } from '@prisma/client';
 
 export class UpgradeDetector implements OpportunityDetector {
   readonly requires: MerchantCapability[] = ['subscriptions', 'usage'];
 
-  private readonly plans: Record<string, { id: string, name: string, priceMinor: number, seatLimit: number }> = {
-    'plan-starter': { id: 'plan-starter', name: 'Starter Plan', priceMinor: 49900, seatLimit: 5 },
-    'plan-growth': { id: 'plan-growth', name: 'Growth Plan', priceMinor: 99900, seatLimit: 15 },
-  };
+  constructor(private readonly prisma?: PrismaClient) {}
 
   async detect(merchantId: string, capabilities: MerchantCapabilities, context: Record<string, any>): Promise<RevenueOpportunity[]> {
     const opportunities: RevenueOpportunity[] = [];
@@ -16,31 +14,58 @@ export class UpgradeDetector implements OpportunityDetector {
     const requestedSeats = context.requestedSeats || 0;
     const sessionId = context.sessionId;
 
-    if (currentPlanId && this.plans[currentPlanId]) {
-      const currentPlan = this.plans[currentPlanId];
+    if (!this.prisma || !currentPlanId) {
+      return [];
+    }
 
-      if (requestedSeats > currentPlan.seatLimit) {
-        
-        if (currentPlanId === 'plan-starter' && requestedSeats <= this.plans['plan-growth'].seatLimit) {
-          const upgradePlan = this.plans['plan-growth'];
-          
-          opportunities.push({
-            id: crypto.randomUUID(),
-            merchantId,
-            sessionId,
-            type: 'UPGRADE',
-            affectedResources: [upgradePlan.id],
-            expectedImpactValue: upgradePlan.priceMinor - currentPlan.priceMinor,
-            confidence: 0.9,
-            evidence: `User requested ${requestedSeats} seats, which exceeds current limit of ${currentPlan.seatLimit}. Recommending ${upgradePlan.name}.`,
-            proposedAction: {
-              actionType: 'UPGRADE_PLAN',
-              resourceId: upgradePlan.id,
-              priceMinor: upgradePlan.priceMinor, 
-            }
-          });
+    try {
+      const products = await this.prisma.product.findMany({
+        where: { merchantId, active: true }
+      });
+
+      const plans: Record<string, { id: string, name: string, priceMinor: number, seatLimit: number }> = {};
+      for (const p of products) {
+        if (!p.description) continue;
+        const match = p.description.match(/<!--\s*seatLimit:\s*(\d+)\s*-->/);
+        if (match) {
+          plans[p.id] = {
+            id: p.id,
+            name: p.name,
+            priceMinor: p.priceMinor,
+            seatLimit: parseInt(match[1], 10)
+          };
         }
       }
+
+      if (plans[currentPlanId]) {
+        const currentPlan = plans[currentPlanId];
+
+        if (requestedSeats > currentPlan.seatLimit) {
+          const upgradePlan = Object.values(plans)
+            .filter(p => p.seatLimit >= requestedSeats && p.priceMinor > currentPlan.priceMinor)
+            .sort((a, b) => a.priceMinor - b.priceMinor)[0];
+
+          if (upgradePlan) {
+            opportunities.push({
+              id: crypto.randomUUID(),
+              merchantId,
+              sessionId,
+              type: 'UPGRADE',
+              affectedResources: [upgradePlan.id],
+              expectedImpactValue: upgradePlan.priceMinor - currentPlan.priceMinor,
+              confidence: 0.9,
+              evidence: `User requested ${requestedSeats} seats, which exceeds current limit of ${currentPlan.seatLimit}. Recommending ${upgradePlan.name}.`,
+              proposedAction: {
+                actionType: 'UPGRADE_PLAN',
+                resourceId: upgradePlan.id,
+                priceMinor: upgradePlan.priceMinor, 
+              }
+            });
+          }
+        }
+      }
+    } catch {
+      // safe fallback if DB fails
     }
 
     return opportunities;

@@ -226,7 +226,7 @@ describe.sequential('Phase 21: Commerce Protocol Integration', () => {
     const machine = new WorkflowStateMachine(CommerceProtocolWorkflow);
     const msg = createBaseMessage('DISCOVER', { query: 'test' });
     msg.timestamp = 'invalid-date';
-    await expect(handler.handleMessage(msg, machine)).rejects.toThrow(/Invalid ISO datetime/);
+    await expect(handler.handleMessage(msg, machine)).rejects.toThrow(/Invalid datetime/);
   });
 
   it('17. missing capability', async () => {

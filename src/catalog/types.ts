@@ -16,6 +16,7 @@ export interface InventoryItem {
 export interface CatalogProvider {
   search(merchantId: string, query: string): Promise<CatalogItem[]>;
   get(merchantId: string, productId: string): Promise<CatalogItem | null>;
+  getRelatedProducts(merchantId: string, productId: string): Promise<CatalogItem[]>;
 }
 
 export interface InventoryProvider {

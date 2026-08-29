@@ -5,6 +5,7 @@ export interface ModelProvider {
   generate(options: GenerateOptions): Promise<ModelResponse>;
   stream(options: GenerateOptions): Promise<ModelStreamResponse>;
   structured<T>(options: StructuredOptions<T>): Promise<ModelStructuredResponse<T>>;
+  chat(options: ChatOptions): Promise<ChatResponse>;
 }
 
 export interface GenerateOptions {
@@ -41,6 +42,30 @@ export interface ModelStreamResponse {
 
 export interface ModelStructuredResponse<T> {
   object: T;
+  usage: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  latencyMs: number;
+  provider: string;
+  model: string;
+}
+
+export interface ChatOptions {
+  messages: any[]; // Vercel AI SDK CoreMessage[]
+  system?: string;
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+  tools?: Record<string, any>;
+  maxSteps?: number;
+}
+
+export interface ChatResponse {
+  text: string;
+  toolCalls?: any[];
+  toolResults?: any[];
   usage: {
     promptTokens: number;
     completionTokens: number;

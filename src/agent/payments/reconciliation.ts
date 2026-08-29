@@ -95,27 +95,21 @@ export const createPaymentReconciliationHandler = (prisma: PrismaClient) => {
     });
 
     // 4. Update RevenueOpportunityLog
-    // Find if there is a revenue opportunity log tied to this sessionId
-    const commerceOrder = await prisma.commerceOrder.findUnique({
-      where: { id: internalOrderId }
-    });
+    // Find the specific revenue opportunity log tied to this order
+    if (newStatus === 'captured') {
+      const revLog = await prisma.revenueOpportunityLog.findFirst({
+        where: { orderId: internalOrderId, status: 'ACCEPTED' }
+      });
 
-    if (commerceOrder && commerceOrder.sessionId) {
-      if (newStatus === 'captured') {
-        const revLog = await prisma.revenueOpportunityLog.findFirst({
-          where: { sessionId: commerceOrder.sessionId, status: 'OPEN' }
+      if (revLog) {
+        await prisma.revenueOpportunityLog.update({
+          where: { id: revLog.id },
+          data: {
+            status: 'CONVERTED',
+            convertedAt: new Date(),
+            realizedImpactMinor: revLog.expectedImpactMinor
+          }
         });
-
-        if (revLog) {
-          await prisma.revenueOpportunityLog.update({
-            where: { id: revLog.id },
-            data: {
-              status: 'CONVERTED',
-              convertedAt: new Date(),
-              realizedImpactMinor: paymentIntent.amount
-            }
-          });
-        }
       }
     }
   };

@@ -89,4 +89,37 @@ export class OpenAIAdapter implements ModelProvider {
       model: modelId,
     };
   }
+
+  async chat(options: import('../../types').ChatOptions): Promise<import('../../types').ChatResponse> {
+    const startTime = Date.now();
+    const modelId = options.model || 'gpt-4o-mini';
+    
+    const result = await generateText({
+      model: this.openai(modelId),
+      messages: options.messages as any,
+      system: options.system,
+      temperature: options.temperature,
+      // @ts-ignore
+      maxTokens: options.maxTokens,
+      tools: options.tools,
+      maxSteps: options.maxSteps || 1
+    });
+
+    return {
+      text: result.text,
+      toolCalls: result.toolCalls,
+      toolResults: result.toolResults,
+      usage: {
+        // @ts-ignore
+        promptTokens: result.usage?.promptTokens ?? (result.usage as any)?.inputTokens ?? 0,
+        // @ts-ignore
+        completionTokens: result.usage?.completionTokens ?? (result.usage as any)?.outputTokens ?? 0,
+        // @ts-ignore
+        totalTokens: result.usage?.totalTokens ?? ((result.usage as any)?.inputTokens || 0) + ((result.usage as any)?.outputTokens || 0),
+      },
+      latencyMs: Date.now() - startTime,
+      provider: this.name,
+      model: modelId,
+    };
+  }
 }

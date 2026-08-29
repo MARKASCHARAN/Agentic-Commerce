@@ -31,6 +31,14 @@ export class ToolGateway {
     this.deps.eventEmitter.emit(event, payload);
   }
 
+  listTools() {
+    return this.deps.toolRegistry.list();
+  }
+
+  getTool(toolId: string) {
+    return this.deps.toolRegistry.get(toolId);
+  }
+
   async execute<Input = unknown, Output = unknown>(
     request: ToolExecutionRequest<Input>
   ): Promise<ToolExecutionResult<Output>> {
@@ -66,7 +74,9 @@ export class ToolGateway {
       agentId,
       sessionId,
       merchantId: context.merchantId,
-      abortSignal: abortController.signal
+      abortSignal: abortController.signal,
+      revenueOpportunity: context.revenueOpportunity,
+      idempotencyKey: context.idempotencyKey
     };
 
     const eventPayloadBase = { identity: { executionId, agentId, sessionId }, tool: toolId, toolId };

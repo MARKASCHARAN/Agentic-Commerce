@@ -2,57 +2,553 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Agentic Commerce E2E</title>
-  <style>
-    body { font-family: sans-serif; display: flex; flex-direction: row; margin: 0; padding: 0; height: 100vh; }
-    #chat-container { width: 50%; border-right: 1px solid #ccc; padding: 20px; display: flex; flex-direction: column; }
-    #dashboard-container { width: 50%; padding: 20px; background: #f9f9f9; }
-    #chat-log { flex: 1; overflow-y: auto; border: 1px solid #eee; padding: 10px; margin-bottom: 10px; }
-    .message { margin-bottom: 10px; }
-    .buyer { color: blue; }
-    .agent { color: green; }
-    .system { color: gray; font-size: 0.9em; }
-    .checkout-btn { background: #4285F4; color: white; border: none; padding: 10px; cursor: pointer; border-radius: 4px; margin-top: 5px; }
-    input[type="text"] { padding: 10px; width: calc(100% - 100px); }
-    button { padding: 10px; width: 80px; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agentic Commerce OS — GenUI & Revenue Intelligence</title>
+  
+  <!-- Modern Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Razorpay Checkout SDK -->
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #090D16;
+      --panel-bg: rgba(15, 23, 42, 0.65);
+      --glass-border: rgba(255, 255, 255, 0.08);
+      --accent-cyan: #00F2FE;
+      --accent-indigo: #4FACFE;
+      --accent-emerald: #10B981;
+      --accent-amber: #F59E0B;
+      --accent-rose: #EF4444;
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+      --card-bg: rgba(30, 41, 59, 0.7);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+
+    body {
+      background: var(--bg-dark);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(79, 172, 254, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(0, 242, 254, 0.1) 0px, transparent 50%);
+      color: var(--text-main);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Navigation Bar */
+    header {
+      height: 64px;
+      border-bottom: 1px solid var(--glass-border);
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      color: #090D16;
+    }
+
+    .brand-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+      background: linear-gradient(to right, #FFF, var(--text-muted));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .merchant-badge {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--glass-border);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-emerald);
+      box-shadow: 0 0 10px var(--accent-emerald);
+    }
+
+    /* Main Container Split */
+    .app-container {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Left Panel - Buyer AI Chat */
+    .chat-panel {
+      width: 48%;
+      border-right: 1px solid var(--glass-border);
+      display: flex;
+      flex-direction: column;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+    }
+
+    .panel-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--glass-border);
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .chat-bubble {
+      max-width: 85%;
+      padding: 14px 18px;
+      border-radius: 16px;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .chat-bubble.user {
+      align-self: flex-end;
+      background: linear-gradient(135deg, var(--accent-indigo), #3B82F6);
+      color: white;
+      border-bottom-right-radius: 4px;
+      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25);
+    }
+
+    .chat-bubble.assistant {
+      align-self: flex-start;
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid var(--glass-border);
+      color: var(--text-main);
+      border-bottom-left-radius: 4px;
+    }
+
+    /* GenUI Component Cards */
+    .genui-card {
+      margin-top: 12px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
+    }
+
+    .genui-card-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent-cyan);
+      margin-bottom: 8px;
+    }
+
+    .genui-card-body {
+      font-size: 0.9rem;
+      color: var(--text-main);
+    }
+
+    .action-btn {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo));
+      color: #090D16;
+      font-weight: 700;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 12px;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .action-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0, 242, 254, 0.4);
+    }
+
+    .action-btn.secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+    }
+
+    .action-btn.danger {
+      background: linear-gradient(135deg, var(--accent-rose), #DC2626);
+      color: white;
+    }
+
+    /* Chat Input Bar */
+    .chat-input-area {
+      padding: 16px 24px;
+      border-top: 1px solid var(--glass-border);
+      display: flex;
+      gap: 12px;
+      background: rgba(15, 23, 42, 0.9);
+    }
+
+    .chat-input {
+      flex: 1;
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 12px 18px;
+      color: white;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .chat-input:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    /* Right Panel - Merchant Dashboard */
+    .dashboard-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: rgba(9, 13, 22, 0.4);
+      overflow-y: auto;
+      padding: 24px;
+      gap: 20px;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .metric-card {
+      background: var(--card-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .metric-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .metric-value {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .metric-sub {
+      font-size: 0.78rem;
+      color: var(--accent-emerald);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .cohort-section {
+      background: var(--card-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px;
+      padding: 20px;
+    }
+
+    .section-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .cohort-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .cohort-box {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .cohort-box h4 {
+      font-size: 0.85rem;
+      color: var(--accent-cyan);
+      margin-bottom: 8px;
+    }
+
+    .cohort-stat {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      margin-bottom: 4px;
+      color: var(--text-muted);
+    }
+
+    .cohort-stat span:last-child {
+      color: var(--text-main);
+      font-weight: 600;
+    }
+  </style>
 </head>
 <body>
 
-  <div id="chat-container">
-    <h2>Buyer UI</h2>
-    <div id="chat-log"></div>
-    <div style="display: flex;">
-      <input type="text" id="chat-input" placeholder="Say something (e.g., 'Show me running shoes')" />
-      <button onclick="sendMessage()">Send</button>
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">AC</div>
+      <div class="brand-title">Agentic Commerce OS</div>
+    </div>
+    <div class="header-controls">
+      <div class="merchant-badge">
+        <div class="status-dot"></div>
+        Merchant: <strong id="merchant-name-display">Loading...</strong>
+      </div>
+      <button class="action-btn secondary" style="margin: 0; padding: 6px 12px; font-size: 0.8rem;" onclick="refreshDashboard()">Refresh</button>
+    </div>
+  </header>
+
+  <!-- Main Grid -->
+  <div class="app-container">
+    
+    <!-- Left Panel: Chat -->
+    <div class="chat-panel">
+      <div class="panel-header">
+        <span>AI Buyer Assistant</span>
+        <span style="font-size: 0.8rem; color: var(--text-muted);" id="session-badge">Session: ACTIVE</span>
+      </div>
+      <div class="chat-messages" id="chat-messages">
+        <div class="chat-bubble assistant">
+          Hello! I am your AI Commerce Assistant. Ask me to find products, negotiate prices, or checkout items!
+        </div>
+      </div>
+      <div class="chat-input-area">
+        <input type="text" class="chat-input" id="chat-input" placeholder="Ask e.g. 'Show me running shoes' or 'Buy laptop'" onkeydown="if(event.key==='Enter') sendMessage()" />
+        <button class="action-btn" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+
+    <!-- Right Panel: Dashboard -->
+    <div class="dashboard-panel">
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">Total Revenue</div>
+          <div class="metric-value" id="val-total-rev">₹0.00</div>
+          <div class="metric-sub">Captured orders</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">AI Incremental</div>
+          <div class="metric-value" id="val-ai-rev" style="color: var(--accent-cyan);">₹0.00</div>
+          <div class="metric-sub" id="val-ai-opps">0 Converted Opps</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">AOV Uplift</div>
+          <div class="metric-value" id="val-aov-uplift">+₹0.00</div>
+          <div class="metric-sub">vs Control Cohort</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Conversion Rate</div>
+          <div class="metric-value" id="val-conv-rate">0.0%</div>
+          <div class="metric-sub" id="val-conv-uplift">Uplift: +0.0%</div>
+        </div>
+      </div>
+
+      <!-- Cohort A/B Section -->
+      <div class="cohort-section">
+        <div class="section-title">
+          <span>A/B Experiment Cohorts</span>
+          <span style="font-size: 0.78rem; color: var(--accent-indigo);">Stateless Session Hash Split</span>
+        </div>
+        <div class="cohort-grid">
+          <div class="cohort-box">
+            <h4>ASSISTED COHORT (AI Enabled)</h4>
+            <div class="cohort-stat"><span>Sessions:</span><span id="c-ast-sess">0</span></div>
+            <div class="cohort-stat"><span>Orders:</span><span id="c-ast-orders">0</span></div>
+            <div class="cohort-stat"><span>Revenue:</span><span id="c-ast-rev">₹0.00</span></div>
+            <div class="cohort-stat"><span>AOV:</span><span id="c-ast-aov">₹0.00</span></div>
+          </div>
+          <div class="cohort-box">
+            <h4>CONTROL COHORT (Baseline)</h4>
+            <div class="cohort-stat"><span>Sessions:</span><span id="c-ctl-sess">0</span></div>
+            <div class="cohort-stat"><span>Orders:</span><span id="c-ctl-orders">0</span></div>
+            <div class="cohort-stat"><span>Revenue:</span><span id="c-ctl-rev">₹0.00</span></div>
+            <div class="cohort-stat"><span>AOV:</span><span id="c-ctl-aov">₹0.00</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Measured Performance Rates -->
+      <div class="cohort-section">
+        <div class="section-title">Measured Opportunity Rates</div>
+        <div class="metrics-grid" style="grid-template-columns: repeat(4, 1fr);">
+          <div class="metric-card">
+            <div class="metric-label">Cross-Sell</div>
+            <div class="metric-value" id="rate-cross">0%</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Upsell</div>
+            <div class="metric-value" id="rate-upsell">0%</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Recovery</div>
+            <div class="metric-value" id="rate-recovery">0%</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Repeat Purchase</div>
+            <div class="metric-value" id="rate-repeat">0%</div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
-  <div id="dashboard-container">
-    <h2>Merchant Dashboard</h2>
-    <button onclick="refreshDashboard()">Refresh</button>
-    <pre id="dashboard-data">Loading...</pre>
-  </div>
-
   <script>
+    function getMerchantId() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const fromUrl = urlParams.get('merchantId');
+      if (fromUrl) {
+        localStorage.setItem('merchantId', fromUrl);
+        return fromUrl;
+      }
+      return localStorage.getItem('merchantId') || 'demo-merchant-id';
+    }
+
+    function getOrCreateSessionId() {
+      let id = localStorage.getItem('sessionId');
+      if (!id) {
+        id = 'sess_' + Math.random().toString(36).substring(2, 9);
+        localStorage.setItem('sessionId', id);
+      }
+      return id;
+    }
+
+    document.getElementById('merchant-name-display').textContent = getMerchantId();
+
     async function refreshDashboard() {
       try {
-        const res = await fetch('/api/dashboard');
+        const merchantId = getMerchantId();
+        const res = await fetch(`/api/dashboard?merchantId=${encodeURIComponent(merchantId)}`);
+        if (!res.ok) return;
         const data = await res.json();
-        document.getElementById('dashboard-data').textContent = JSON.stringify(data, null, 2);
+
+        document.getElementById('val-total-rev').textContent = `₹${(data.totalRevenue || 0).toFixed(2)}`;
+        document.getElementById('val-ai-rev').textContent = `₹${(data.aiAssistedRevenue || 0).toFixed(2)}`;
+        document.getElementById('val-ai-opps').textContent = `${data.convertedOpportunities || 0} Converted Opps`;
+
+        if (data.cohorts) {
+          const ast = data.cohorts.assisted;
+          const ctl = data.cohorts.control;
+          const up = data.cohorts.uplift;
+
+          document.getElementById('val-aov-uplift').textContent = `+₹${(up.aov || 0).toFixed(2)}`;
+          document.getElementById('val-conv-rate').textContent = `${(ast.conversionRate || 0).toFixed(1)}%`;
+          document.getElementById('val-conv-uplift').textContent = `Uplift: +${(up.conversionRate || 0).toFixed(1)}%`;
+
+          document.getElementById('c-ast-sess').textContent = ast.sessions;
+          document.getElementById('c-ast-orders').textContent = ast.orders;
+          document.getElementById('c-ast-rev').textContent = `₹${ast.revenue.toFixed(2)}`;
+          document.getElementById('c-ast-aov').textContent = `₹${ast.aov.toFixed(2)}`;
+
+          document.getElementById('c-ctl-sess').textContent = ctl.sessions;
+          document.getElementById('c-ctl-orders').textContent = ctl.orders;
+          document.getElementById('c-ctl-rev').textContent = `₹${ctl.revenue.toFixed(2)}`;
+          document.getElementById('c-ctl-aov').textContent = `₹${ctl.aov.toFixed(2)}`;
+        }
+
+        if (data.performanceRates) {
+          document.getElementById('rate-cross').textContent = `${data.performanceRates.crossSellRate.toFixed(0)}%`;
+          document.getElementById('rate-upsell').textContent = `${data.performanceRates.upsellRate.toFixed(0)}%`;
+          document.getElementById('rate-recovery').textContent = `${data.performanceRates.recoveryRate.toFixed(0)}%`;
+          document.getElementById('rate-repeat').textContent = `${data.performanceRates.repeatPurchaseRate.toFixed(0)}%`;
+        }
       } catch (e) {
-        document.getElementById('dashboard-data').textContent = 'Error loading dashboard.';
+        console.error('Failed to load dashboard:', e);
       }
     }
-    
-    function appendMessage(role, text) {
-      const log = document.getElementById('chat-log');
-      const div = document.createElement('div');
-      div.className = `message ${role}`;
-      div.innerHTML = `<strong>${role.toUpperCase()}:</strong> ${text}`;
-      log.appendChild(div);
-      log.scrollTop = log.scrollHeight;
+
+    function appendMessage(role, text, genuiCard = null) {
+      const container = document.getElementById('chat-messages');
+      const bubble = document.createElement('div');
+      bubble.className = `chat-bubble ${role}`;
+      bubble.innerText = text;
+
+      if (genuiCard) {
+        const cardDiv = document.createElement('div');
+        cardDiv.className = 'genui-card';
+        cardDiv.innerHTML = `
+          <div class="genui-card-title">${genuiCard.title}</div>
+          <div class="genui-card-body">${JSON.stringify(genuiCard.data, null, 2)}</div>
+        `;
+        bubble.appendChild(cardDiv);
+      }
+
+      container.appendChild(bubble);
+      container.scrollTop = container.scrollHeight;
     }
 
     async function sendMessage() {
@@ -61,77 +557,54 @@
       if (!text) return;
       
       input.value = '';
-      appendMessage('buyer', text);
+      appendMessage('user', text);
 
       try {
+        const merchantId = getMerchantId();
+        const sessionId = getOrCreateSessionId();
+
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text })
+          body: JSON.stringify({ message: text, sessionId, merchantId })
         });
+
         const data = await res.json();
         
-        appendMessage('agent', data.response);
-
         if (data.checkoutData) {
-          const btn = document.createElement('button');
-          btn.className = 'checkout-btn';
-          btn.textContent = `Pay ${data.checkoutData.currency} ${(data.checkoutData.amountMinor / 100).toFixed(2)}`;
-          btn.onclick = () => openRazorpay(data.checkoutData);
-          document.getElementById('chat-log').appendChild(btn);
+          appendMessage('assistant', data.response || 'Checkout ready. Launching Razorpay payment modal...');
+          launchRazorpay(data.checkoutData);
+        } else {
+          appendMessage('assistant', data.response || 'Request processed.');
         }
+
+        refreshDashboard();
       } catch (e) {
-        appendMessage('system', 'Error connecting to agent backend.');
+        appendMessage('assistant', 'Error communicating with server.');
       }
     }
 
-    function openRazorpay(checkoutData) {
+    function launchRazorpay(checkoutData) {
       const options = {
-        key: checkoutData.razorpayKeyId, // The frontend receives ONLY the key ID
+        key: checkoutData.razorpayKeyId,
         amount: checkoutData.amountMinor,
-        currency: checkoutData.currency,
-        name: "Agentic Sports Demo",
-        description: "Test Transaction",
+        currency: checkoutData.currency || 'INR',
+        name: 'Agentic Commerce',
+        description: 'Order Checkout',
         order_id: checkoutData.razorpayOrderId,
-        handler: function (response) {
-          appendMessage('system', `Payment successful! Payment ID: ${response.razorpay_payment_id}`);
-          appendMessage('system', 'Waiting for webhook to reconcile revenue...');
-          // Note: the backend will reconcile via webhook. We just poll dashboard to see it.
-          setTimeout(refreshDashboard, 3000);
+        handler: async function (response) {
+          appendMessage('assistant', `Payment successful! Payment ID: ${response.razorpay_payment_id}`);
+          refreshDashboard();
         },
-        prefill: {
-          name: "Test Buyer",
-          email: "buyer@example.com",
-        },
-        theme: {
-          color: "#3399cc"
-        }
+        theme: { color: '#00F2FE' }
       };
-      
-      if (!window.Razorpay) {
-        throw new Error("Razorpay Checkout SDK is not loaded");
-      }
-
-      console.log({
-        razorpayConstructorAvailable: typeof window.Razorpay,
-        keyPresent: Boolean(options.key),
-        keyPrefix: options.key ? options.key.slice(0, 9) : null,
-        orderId: options.order_id,
-        amount: options.amount,
-        currency: options.currency
-      });
-
-      appendMessage('system', 'Diagnostics printed to console. Check DevTools.');
-
       const rzp = new Razorpay(options);
-      rzp.on('payment.failed', function (response){
-          appendMessage('system', `Payment failed: ${response.error.description}`);
-      });
       rzp.open();
     }
 
-    // Initial load
+    // Initial Dashboard Fetch
     refreshDashboard();
+    setInterval(refreshDashboard, 5000);
   </script>
 </body>
 </html>

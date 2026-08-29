@@ -13,15 +13,16 @@ export class RevenueTracker {
     });
 
     if (existing) {
-      await this.prisma.revenueOpportunityLog.update({
-        where: { id: existing.id },
-        data: {
-          expectedImpactMinor: opportunity.expectedImpactValue,
-          status: 'PROPOSED',
-          updatedAt: new Date(),
-        }
-      });
-      
+      if (existing.status === 'PROPOSED') {
+        await this.prisma.revenueOpportunityLog.update({
+          where: { id: existing.id },
+          data: {
+            expectedImpactMinor: opportunity.expectedImpactValue,
+            status: 'PROPOSED',
+            updatedAt: new Date(),
+          }
+        });
+      }
       opportunity.id = existing.id;
     } else {
       const log = await this.prisma.revenueOpportunityLog.create({

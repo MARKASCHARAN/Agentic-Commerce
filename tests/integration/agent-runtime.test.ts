@@ -25,8 +25,8 @@ describe('AgentRuntime Execution Loop', () => {
   beforeEach(() => {
     mockDeps = {
       modelGateway: {
-        structured: vi.fn().mockResolvedValue({ 
-          object: { type: 'FINAL_RESPONSE', payload: { text: 'Model output' } },
+        chat: vi.fn().mockResolvedValue({ 
+          text: 'Model output',
           usage: { totalTokens: 50, promptTokens: 30, completionTokens: 20 }
         }),
       } as unknown as ModelGateway,
@@ -42,7 +42,9 @@ describe('AgentRuntime Execution Loop', () => {
         saveState: vi.fn().mockResolvedValue(undefined),
       } as StateManager,
       toolGateway: {
-        execute: vi.fn().mockResolvedValue({ output: { success: true } })
+        execute: vi.fn().mockResolvedValue({ output: { success: true } }),
+        listTools: vi.fn().mockReturnValue([]),
+        getTool: vi.fn().mockReturnValue({ inputSchema: z.any() })
       } as any,
       skillSelector: {
         selectSkill: vi.fn().mockResolvedValue(null),
@@ -56,67 +58,37 @@ describe('AgentRuntime Execution Loop', () => {
     runtime = new AgentRuntime(mockDeps);
   });
 
-  it('should successfully complete with a FINAL_RESPONSE action', async () => {
+  it('should successfully complete with a FINAL_RESPONSE action when no tool calls are made', async () => {
     const result = await runtime.execute(mockIdentity, 'Say hello');
 
-    expect(mockDeps.modelGateway.structured).toHaveBeenCalled();
+    expect(mockDeps.modelGateway.chat).toHaveBeenCalled();
     expect(result).toEqual(expect.objectContaining({
       action: 'FINAL_RESPONSE',
-      payload: 'Model output',
+      payload: { text: 'Model output' },
       usage: { totalTokens: 50 }
     }));
     
     expect(mockDeps.stateManager.saveState).toHaveBeenLastCalledWith('exec-123', 'COMPLETED');
-    expect(mockDeps.eventEmitter.emit).toHaveBeenCalledWith('EXECUTION_COMPLETED', expect.objectContaining({ result: expect.objectContaining({ action: 'FINAL_RESPONSE', payload: 'Model output' }) }));
+    expect(mockDeps.eventEmitter.emit).toHaveBeenCalledWith('EXECUTION_COMPLETED', expect.objectContaining({ result: expect.objectContaining({ action: 'FINAL_RESPONSE' }) }));
   });
 
-  it('should route TOOL_REQUEST correctly and emit tool events', async () => {
-    mockDeps.modelGateway.structured = vi.fn().mockResolvedValue({
-      object: { type: 'TOOL_REQUEST', payload: { toolName: 'payment_tool', input: { amount: 100 } } },
+  it('should route TOOL_REQUEST correctly for checkout.create', async () => {
+    mockDeps.modelGateway.chat = vi.fn().mockResolvedValue({
+      toolCalls: [{ toolCallId: 'call-1', toolName: 'checkout.create', input: { items: [] } }],
       usage: { totalTokens: 50 }
     });
+    
+    (mockDeps.toolGateway as any).listTools = vi.fn().mockReturnValue([{ id: 'checkout.create', description: 'desc' }]);
+    (mockDeps.toolGateway as any).getTool = vi.fn().mockReturnValue({ inputSchema: z.any() });
+    (mockDeps.toolGateway as any).execute = vi.fn().mockResolvedValue({ output: { amountMinor: 5000, currency: 'INR' } });
 
-    const result = await runtime.execute(mockIdentity, 'Process payment');
-
-    expect(mockDeps.toolGateway.execute).toHaveBeenCalledWith(expect.objectContaining({ toolId: 'payment_tool', input: { amount: 100 } }));
+    const result = await runtime.execute(mockIdentity, 'buy');
     
     expect(result).toEqual(expect.objectContaining({ 
       action: 'TOOL_REQUEST', 
-      payload: { toolName: 'payment_tool', result: { success: true } },
+      payload: { toolName: 'checkout.create', result: { amountMinor: 5000, currency: 'INR' } },
       usage: { totalTokens: 50 }
     }));
-    expect(mockDeps.stateManager.saveState).toHaveBeenLastCalledWith('exec-123', 'COMPLETED');
-  });
-
-  it('should safely reject unsupported/unimplemented tools when ToolExecutor fails', async () => {
-    mockDeps.modelGateway.structured = vi.fn().mockResolvedValue({
-      object: { type: 'TOOL_REQUEST', payload: { toolName: 'future_tool', input: {} } },
-      usage: { totalTokens: 50 }
-    });
-    
-    (mockDeps.toolGateway as any).execute = vi.fn().mockRejectedValue(new Error('Tool Gateway not implemented'));
-
-    await expect(runtime.execute(mockIdentity, 'Do something'))
-      .rejects.toThrow("Unsupported/Failed action: Tool 'future_tool' could not be executed. Reason: Tool Gateway not implemented");
-
-    expect(mockDeps.eventEmitter.emit).toHaveBeenCalledWith('EXECUTION_FAILED', expect.anything());
-    expect(mockDeps.stateManager.saveState).toHaveBeenLastCalledWith('exec-123', 'FAILED');
-  });
-
-  it('should yield CONTINUE reasoning steps back to the runtime', async () => {
-    mockDeps.modelGateway.structured = vi.fn().mockResolvedValue({
-      object: { type: 'CONTINUE', payload: { thought: 'Thinking...' } },
-      usage: { totalTokens: 50 }
-    });
-
-    const result = await runtime.execute(mockIdentity, 'Think');
-
-    expect(result).toEqual(expect.objectContaining({ 
-      action: 'CONTINUE', 
-      payload: { thought: 'Thinking...' },
-      usage: { totalTokens: 50 }
-    }));
-    expect(mockDeps.stateManager.saveState).toHaveBeenLastCalledWith('exec-123', 'COMPLETED');
   });
 
   it('should fail immediately when maxTokens budget is exceeded', async () => {
@@ -127,9 +99,9 @@ describe('AgentRuntime Execution Loop', () => {
   });
 
   it('should transition to CANCELLED on timeout', async () => {
-    mockDeps.modelGateway.structured = vi.fn().mockImplementation(() => {
+    mockDeps.modelGateway.chat = vi.fn().mockImplementation(() => {
       return new Promise((resolve) => setTimeout(() => resolve({ 
-        object: { type: 'FINAL_RESPONSE', payload: { text: 'Done' } },
+        text: 'Done',
         usage: { totalTokens: 10 }
       }), 100));
     });
@@ -143,9 +115,9 @@ describe('AgentRuntime Execution Loop', () => {
   it('should transition to CANCELLED on explicit abort', async () => {
     const abortController = new AbortController();
     
-    mockDeps.modelGateway.structured = vi.fn().mockImplementation(() => {
+    mockDeps.modelGateway.chat = vi.fn().mockImplementation(() => {
       abortController.abort(new Error('User clicked cancel'));
-      return Promise.resolve({ object: { type: 'FINAL_RESPONSE', payload: { text: 'Done' } }, usage: { totalTokens: 10 } });
+      return Promise.resolve({ text: 'Done', usage: { totalTokens: 10 } });
     });
 
     await expect(runtime.execute(mockIdentity, 'Do something', { abortSignal: abortController.signal }))

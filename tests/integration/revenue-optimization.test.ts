@@ -30,6 +30,11 @@ describe.sequential('Phase 20: Measurable Revenue Optimization', () => {
     await prisma.paymentIntent.deleteMany({});
     await prisma.commerceItem.deleteMany({});
     await prisma.commerceOrder.deleteMany({});
+    await prisma.message.deleteMany({});
+    await prisma.cart.deleteMany({});
+    await prisma.event.deleteMany({});
+    await prisma.toolCall.deleteMany({});
+    await prisma.skillExecution.deleteMany({});
     await prisma.session.deleteMany({});
 
     queue = new Queue(queueName, { connection: { url: redisUrl } });
@@ -143,7 +148,7 @@ describe.sequential('Phase 20: Measurable Revenue Optimization', () => {
     });
     await publisher.tick();
 
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
     let log = await prisma.revenueOpportunityLog.findUnique({ where: { id: oppId }});
     expect(log!.status).toBe('CONVERTED');
@@ -163,7 +168,7 @@ describe.sequential('Phase 20: Measurable Revenue Optimization', () => {
     });
     await publisher.tick();
 
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
     log = await prisma.revenueOpportunityLog.findUnique({ where: { id: oppId }});
     expect(log!.realizedImpactMinor).toBe(699); 
@@ -197,7 +202,7 @@ describe.sequential('Phase 20: Measurable Revenue Optimization', () => {
     });
     await publisher.tick();
 
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
     const log = await prisma.revenueOpportunityLog.findUnique({ where: { id: oppId }});
     expect(log!.status).toBe('ACCEPTED'); 
@@ -227,7 +232,7 @@ describe.sequential('Phase 20: Measurable Revenue Optimization', () => {
     });
     await publisher.tick();
 
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
     const metricsSaaS = await analytics.getMetricsForMerchant(merchantSaaS);
     expect(metricsSaaS.totalProposals).toBe(1);

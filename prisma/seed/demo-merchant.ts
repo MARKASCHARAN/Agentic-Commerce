@@ -89,18 +89,21 @@ async function main() {
     {
       id: 'prod_shoes_01',
       name: 'Running Shoes',
+      description: '<!-- rel: ["prod_socks_01"] --> Premium Running Shoes',
       priceMinor: 500000, // INR 5000 * 100
       inventory: 20
     },
     {
       id: 'prod_socks_01',
       name: 'Sports Socks',
+      description: 'Premium Sports Socks',
       priceMinor: 50000, // INR 500 * 100
       inventory: 50
     },
     {
       id: 'prod_bag_01',
       name: 'Sports Bag',
+      description: 'Premium Sports Bag',
       priceMinor: 200000, // INR 2000 * 100
       inventory: 10
     }
@@ -111,6 +114,7 @@ async function main() {
       where: { id: p.id },
       update: {
         name: p.name,
+        description: p.description,
         priceMinor: p.priceMinor,
         currency: 'INR',
         active: true,
@@ -119,7 +123,7 @@ async function main() {
         id: p.id,
         merchantId,
         name: p.name,
-        description: `Premium ${p.name}`,
+        description: p.description,
         priceMinor: p.priceMinor,
         currency: 'INR',
         active: true,

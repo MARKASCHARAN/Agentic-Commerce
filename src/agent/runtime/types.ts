@@ -131,6 +131,7 @@ import { RevenueTracker } from '../intelligence/revenue-tracker';
 import { MerchantCapabilityResolver } from '../intelligence/capability-resolver';
 import { NegotiationEngine } from '../intelligence/negotiation/negotiation-engine';
 import { MerchantGuardrailRepository } from '../../database/repositories/merchant-guardrail.repository';
+import { PrismaClient } from '@prisma/client';
 
 export interface AgentRuntimeDependencies {
   modelGateway: ModelGateway;
@@ -144,4 +145,5 @@ export interface AgentRuntimeDependencies {
   capabilityResolver?: MerchantCapabilityResolver;
   negotiationEngine?: NegotiationEngine;
   guardrailRepository?: MerchantGuardrailRepository;
+  prisma?: PrismaClient;
 }

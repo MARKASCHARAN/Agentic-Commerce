@@ -9,7 +9,8 @@ export type RevenueOpportunityType =
 
 export type PolicyDecision =
   | 'ALLOWED'
-  | 'DENIED';
+  | 'DENIED'
+  | 'REVIEW';
 
 export type ProposedActionType = 
   | 'ADD_PRODUCT'

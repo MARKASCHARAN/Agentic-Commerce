@@ -269,7 +269,7 @@ describe('Phase 26: Payment Firewall', () => {
       toolId: 'capture-payment',
       input: { ...baseInput, amountMinor: 100.50 }, // fractional
       context: getBaseContext(merchantAId)
-    })).rejects.toThrowError(/expected int, received number/);
+    })).rejects.toThrowError(/Expected integer, received float/);
     expect(providerExecuteCount).toBe(0);
   });
 
@@ -278,7 +278,7 @@ describe('Phase 26: Payment Firewall', () => {
       toolId: 'capture-payment',
       input: { amountMinor: 1000 }, // missing paymentId and currency
       context: getBaseContext(merchantAId)
-    })).rejects.toThrowError(/expected string, received undefined/);
+    })).rejects.toThrowError(/Invalid input/);
     expect(providerExecuteCount).toBe(0);
   });
 

@@ -18,18 +18,18 @@ model User {
 }
 
 model Merchant {
-  id          String          @id @default(uuid())
-  userId      String
-  name        String
-  description String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  orders      CommerceOrder[]
+  id           String               @id @default(uuid())
+  userId       String
+  name         String
+  description  String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  orders       CommerceOrder[]
   capabilities MerchantCapability[]
-  guardrails  MerchantGuardrail?
-  products    Product[]
-  inventories Inventory[]
-  user        User            @relation(fields: [userId], references: [id])
+  guardrails   MerchantGuardrail?
+  products     Product[]
+  inventories  Inventory[]
+  user         User                 @relation(fields: [userId], references: [id])
 }
 
 model Agent {
@@ -67,19 +67,30 @@ model AgentCapability {
 }
 
 model Session {
-  id               String           @id @default(uuid())
+  id               String                  @id @default(uuid())
   userId           String?
   merchantId       String?
-  state            String           @default("CREATED")
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  state            String                  @default("CREATED")
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
   orders           CommerceOrder[]
   events           Event[]
   messages         Message[]
-  user             User?            @relation(fields: [userId], references: [id])
+  user             User?                   @relation(fields: [userId], references: [id])
   skill_executions SkillExecution[]
   tool_calls       ToolCall[]
   revenue_logs     RevenueOpportunityLog[]
+  cart             Cart?
+}
+
+model Cart {
+  sessionId             String   @id
+  items                 Json     // Store items as [{"productId": "...", "quantity": ...}]
+  rejectedOpportunities String[] // list of opportunity IDs or target resource IDs rejected in this session
+  acceptedOpportunities String[] // list of opportunity IDs or target resource IDs accepted in this session
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  session               Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }
 
 model Message {
@@ -296,43 +307,43 @@ model WebhookEvent {
 }
 
 model OutboxEvent {
-  id               String   @id @default(uuid())
-  eventId          String   @unique
-  eventType        String
-  aggregateType    String
-  aggregateId      String
-  correlationId    String?
-  payload          Json
-  status           String   @default("PENDING")
-  attempts         Int      @default(0)
-  availableAt      DateTime @default(now())
-  processedAt      DateTime?
-  lastError        Json?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id            String    @id @default(uuid())
+  eventId       String    @unique
+  eventType     String
+  aggregateType String
+  aggregateId   String
+  correlationId String?
+  payload       Json
+  status        String    @default("PENDING")
+  attempts      Int       @default(0)
+  availableAt   DateTime  @default(now())
+  processedAt   DateTime?
+  lastError     Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 model RevenueOpportunityLog {
-  id                  String   @id @default(uuid())
+  id                  String    @id @default(uuid())
   merchantId          String
   sessionId           String
   buyerId             String?
-  opportunityType     String   
+  opportunityType     String
   expectedImpactMinor Int
-  realizedImpactMinor Int      @default(0)
-  status              String   
-  orderId             String?  
-  paymentIntentId     String?  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  realizedImpactMinor Int       @default(0)
+  status              String
+  orderId             String?
+  paymentIntentId     String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
   convertedAt         DateTime?
-  
-  session             Session  @relation(fields: [sessionId], references: [id])
+
+  session Session @relation(fields: [sessionId], references: [id])
 }
 
 model CommerceMessage {
-  id              String   @id @default(uuid())
-  messageId       String   @unique
+  id              String    @id @default(uuid())
+  messageId       String    @unique
   protocolVersion String
   messageType     String
   sessionId       String
@@ -340,7 +351,7 @@ model CommerceMessage {
   recipient       String
   correlationId   String
   payload         Json
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
   expiresAt       DateTime?
 
   @@index([sessionId])
@@ -375,7 +386,7 @@ model MerchantGuardrail {
   disabledSkills              String[] @default([])
   createdAt                   DateTime @default(now())
   updatedAt                   DateTime @updatedAt
-  
+
   merchant Merchant @relation(fields: [merchantId], references: [id])
 }
 
@@ -390,7 +401,7 @@ model Product {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  merchant Merchant @relation(fields: [merchantId], references: [id])
+  merchant  Merchant   @relation(fields: [merchantId], references: [id])
   inventory Inventory?
 }
 

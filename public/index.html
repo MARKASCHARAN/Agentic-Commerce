@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agentic Commerce OS — GenUI & Revenue Intelligence</title>
+  <title>Agentic Commerce OS — Merchant Revenue Platform</title>
   
-  <!-- Modern Google Fonts -->
+  <!-- Inter & Outfit Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -15,26 +15,22 @@
 
   <style>
     :root {
-      --bg-dark: #090D16;
-      --panel-bg: rgba(15, 23, 42, 0.65);
-      --glass-border: rgba(255, 255, 255, 0.08);
-      --accent-cyan: #00F2FE;
-      --accent-indigo: #4FACFE;
-      --accent-emerald: #10B981;
-      --accent-amber: #F59E0B;
-      --accent-rose: #EF4444;
-      --text-main: #F8FAFC;
-      --text-muted: #94A3B8;
-      --card-bg: rgba(30, 41, 59, 0.7);
+      --bg: #090d16;
+      --card-bg: #0f172a;
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-cyan: #00f2fe;
+      --accent-blue: #3b82f6;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #ef4444;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
 
     body {
-      background: var(--bg-dark);
-      background-image: 
-        radial-gradient(at 0% 0%, rgba(79, 172, 254, 0.12) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, rgba(0, 242, 254, 0.1) 0px, transparent 50%);
+      background-color: var(--bg);
       color: var(--text-main);
       height: 100vh;
       overflow: hidden;
@@ -42,12 +38,11 @@
       flex-direction: column;
     }
 
-    /* Top Navigation Bar */
+    /* Top Navigation Header */
     header {
-      height: 64px;
-      border-bottom: 1px solid var(--glass-border);
-      background: rgba(15, 23, 42, 0.8);
-      backdrop-filter: blur(12px);
+      height: 60px;
+      border-bottom: 1px solid var(--card-border);
+      background: rgba(15, 23, 42, 0.9);
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -62,25 +57,24 @@
     }
 
     .brand-logo {
-      width: 32px;
-      height: 32px;
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo));
-      border-radius: 8px;
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+      border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-family: 'Outfit', sans-serif;
       font-weight: 800;
-      color: #090D16;
+      color: #090d16;
+      font-size: 0.9rem;
     }
 
     .brand-title {
       font-family: 'Outfit', sans-serif;
-      font-size: 1.15rem;
+      font-size: 1.1rem;
       font-weight: 700;
-      background: linear-gradient(to right, #FFF, var(--text-muted));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: var(--text-main);
     }
 
     .header-controls {
@@ -89,24 +83,27 @@
       gap: 16px;
     }
 
-    .merchant-badge {
+    .badge {
       background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--glass-border);
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 0.85rem;
+      border: 1px solid var(--card-border);
+      padding: 4px 10px;
+      border-radius: 16px;
+      font-size: 0.78rem;
       color: var(--text-muted);
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
 
+    .badge.success { border-color: rgba(16, 185, 129, 0.3); color: var(--accent-emerald); }
+    .badge.warning { border-color: rgba(245, 158, 11, 0.3); color: var(--accent-amber); }
+    .badge.cyan { border-color: rgba(0, 242, 254, 0.3); color: var(--accent-cyan); }
+
     .status-dot {
-      width: 8px;
-      height: 8px;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
       background: var(--accent-emerald);
-      box-shadow: 0 0 10px var(--accent-emerald);
     }
 
     /* Main Container Split */
@@ -116,22 +113,21 @@
       overflow: hidden;
     }
 
-    /* Left Panel - Buyer AI Chat */
+    /* Left Panel - Buyer Chat & GenUI */
     .chat-panel {
-      width: 48%;
-      border-right: 1px solid var(--glass-border);
+      width: 46%;
+      border-right: 1px solid var(--card-border);
       display: flex;
       flex-direction: column;
-      background: var(--panel-bg);
-      backdrop-filter: blur(16px);
+      background: rgba(15, 23, 42, 0.4);
     }
 
     .panel-header {
-      padding: 16px 24px;
-      border-bottom: 1px solid var(--glass-border);
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--card-border);
       font-family: 'Outfit', sans-serif;
       font-weight: 600;
-      font-size: 1rem;
+      font-size: 0.95rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -140,151 +136,141 @@
     .chat-messages {
       flex: 1;
       overflow-y: auto;
-      padding: 24px;
+      padding: 20px;
       display: flex;
       flex-direction: column;
       gap: 16px;
     }
 
     .chat-bubble {
-      max-width: 85%;
-      padding: 14px 18px;
-      border-radius: 16px;
-      font-size: 0.95rem;
+      max-width: 88%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 0.9rem;
       line-height: 1.5;
-      animation: fadeIn 0.3s ease-out;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: translateY(0); }
     }
 
     .chat-bubble.user {
       align-self: flex-end;
-      background: linear-gradient(135deg, var(--accent-indigo), #3B82F6);
+      background: var(--accent-blue);
       color: white;
-      border-bottom-right-radius: 4px;
-      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25);
+      border-bottom-right-radius: 2px;
     }
 
     .chat-bubble.assistant {
       align-self: flex-start;
-      background: rgba(30, 41, 59, 0.8);
-      border: 1px solid var(--glass-border);
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
       color: var(--text-main);
-      border-bottom-left-radius: 4px;
+      border-bottom-left-radius: 2px;
     }
 
-    /* GenUI Component Cards */
+    /* GenUI Component Cards (shadcn/ui style) */
     .genui-card {
-      margin-top: 12px;
-      background: rgba(15, 23, 42, 0.9);
-      border: 1px solid var(--glass-border);
-      border-radius: 12px;
-      padding: 16px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
+      margin-top: 10px;
+      background: #090d16;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .genui-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 8px;
     }
 
     .genui-card-title {
       font-family: 'Outfit', sans-serif;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--accent-cyan);
-      margin-bottom: 8px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .genui-card-body {
-      font-size: 0.9rem;
-      color: var(--text-main);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.4;
     }
 
     .action-btn {
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo));
-      color: #090D16;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+      color: #090d16;
       font-weight: 700;
       border: none;
-      padding: 10px 18px;
-      border-radius: 8px;
+      padding: 8px 14px;
+      border-radius: 6px;
       cursor: pointer;
-      margin-top: 12px;
-      transition: all 0.2s ease;
+      font-size: 0.82rem;
+      transition: opacity 0.2s;
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
 
-    .action-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 16px rgba(0, 242, 254, 0.4);
-    }
-
-    .action-btn.secondary {
-      background: rgba(255, 255, 255, 0.1);
-      color: var(--text-main);
-    }
-
-    .action-btn.danger {
-      background: linear-gradient(135deg, var(--accent-rose), #DC2626);
-      color: white;
-    }
+    .action-btn:hover { opacity: 0.9; }
+    .action-btn.secondary { background: rgba(255, 255, 255, 0.1); color: var(--text-main); }
+    .action-btn.danger { background: var(--accent-rose); color: white; }
 
     /* Chat Input Bar */
     .chat-input-area {
-      padding: 16px 24px;
-      border-top: 1px solid var(--glass-border);
+      padding: 14px 20px;
+      border-top: 1px solid var(--card-border);
       display: flex;
-      gap: 12px;
-      background: rgba(15, 23, 42, 0.9);
+      gap: 10px;
+      background: var(--card-bg);
     }
 
     .chat-input {
       flex: 1;
-      background: rgba(30, 41, 59, 0.6);
-      border: 1px solid var(--glass-border);
-      border-radius: 12px;
-      padding: 12px 18px;
+      background: #090d16;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 10px 14px;
       color: white;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       outline: none;
-      transition: border-color 0.2s;
     }
 
-    .chat-input:focus {
-      border-color: var(--accent-cyan);
-    }
+    .chat-input:focus { border-color: var(--accent-blue); }
 
     /* Right Panel - Merchant Dashboard */
     .dashboard-panel {
       flex: 1;
       display: flex;
       flex-direction: column;
-      background: rgba(9, 13, 22, 0.4);
+      background: var(--bg);
       overflow-y: auto;
-      padding: 24px;
-      gap: 20px;
+      padding: 20px;
+      gap: 16px;
     }
 
     .metrics-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
+      gap: 12px;
     }
 
     .metric-card {
       background: var(--card-bg);
-      border: 1px solid var(--glass-border);
-      border-radius: 14px;
-      padding: 18px;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 14px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 4px;
     }
 
     .metric-label {
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       color: var(--text-muted);
       text-transform: uppercase;
       font-weight: 600;
@@ -292,31 +278,28 @@
 
     .metric-value {
       font-family: 'Outfit', sans-serif;
-      font-size: 1.6rem;
+      font-size: 1.4rem;
       font-weight: 700;
       color: var(--text-main);
     }
 
     .metric-sub {
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       color: var(--accent-emerald);
-      display: flex;
-      align-items: center;
-      gap: 4px;
     }
 
     .cohort-section {
       background: var(--card-bg);
-      border: 1px solid var(--glass-border);
-      border-radius: 14px;
-      padding: 20px;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 16px;
     }
 
     .section-title {
       font-family: 'Outfit', sans-serif;
-      font-size: 1.05rem;
+      font-size: 0.95rem;
       font-weight: 700;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -325,26 +308,26 @@
     .cohort-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 16px;
+      gap: 12px;
     }
 
     .cohort-box {
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid var(--glass-border);
-      border-radius: 10px;
-      padding: 14px;
+      background: #090d16;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 12px;
     }
 
     .cohort-box h4 {
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       color: var(--accent-cyan);
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .cohort-stat {
       display: flex;
       justify-content: space-between;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
       margin-bottom: 4px;
       color: var(--text-muted);
     }
@@ -352,6 +335,23 @@
     .cohort-stat span:last-child {
       color: var(--text-main);
       font-weight: 600;
+    }
+
+    .opportunity-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .opportunity-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #090d16;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 0.82rem;
     }
   </style>
 </head>
@@ -362,13 +362,14 @@
     <div class="brand">
       <div class="brand-logo">AC</div>
       <div class="brand-title">Agentic Commerce OS</div>
+      <span class="badge cyan">Razorpay Track 01</span>
     </div>
     <div class="header-controls">
-      <div class="merchant-badge">
+      <div class="badge success">
         <div class="status-dot"></div>
-        Merchant: <strong id="merchant-name-display">Loading...</strong>
+        Merchant ID: <strong id="merchant-id-display">Loading...</strong>
       </div>
-      <button class="action-btn secondary" style="margin: 0; padding: 6px 12px; font-size: 0.8rem;" onclick="refreshDashboard()">Refresh</button>
+      <button class="action-btn secondary" onclick="refreshDashboard()">Refresh Metrics</button>
     </div>
   </header>
 
@@ -379,7 +380,7 @@
     <div class="chat-panel">
       <div class="panel-header">
         <span>AI Buyer Assistant</span>
-        <span style="font-size: 0.8rem; color: var(--text-muted);" id="session-badge">Session: ACTIVE</span>
+        <span class="badge" id="session-badge">Session: ACTIVE</span>
       </div>
       <div class="chat-messages" id="chat-messages">
         <div class="chat-bubble assistant">
@@ -394,6 +395,8 @@
 
     <!-- Right Panel: Dashboard -->
     <div class="dashboard-panel">
+      
+      <!-- Metrics Grid -->
       <div class="metrics-grid">
         <div class="metric-card">
           <div class="metric-label">Total Revenue</div>
@@ -421,7 +424,7 @@
       <div class="cohort-section">
         <div class="section-title">
           <span>A/B Experiment Cohorts</span>
-          <span style="font-size: 0.78rem; color: var(--accent-indigo);">Stateless Session Hash Split</span>
+          <span class="badge">Deterministic Session Hash Split</span>
         </div>
         <div class="cohort-grid">
           <div class="cohort-box">
@@ -464,6 +467,14 @@
         </div>
       </div>
 
+      <!-- Live Opportunity Log Stream -->
+      <div class="cohort-section">
+        <div class="section-title">Live Revenue Opportunity Feed</div>
+        <div class="opportunity-list" id="opportunity-list">
+          <div style="font-size: 0.8rem; color: var(--text-muted);">No revenue opportunities recorded yet.</div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -479,15 +490,17 @@
     }
 
     function getOrCreateSessionId() {
-      let id = localStorage.getItem('sessionId');
+      const merchantId = getMerchantId();
+      const storageKey = `sessionId_${merchantId}`;
+      let id = localStorage.getItem(storageKey);
       if (!id) {
         id = 'sess_' + Math.random().toString(36).substring(2, 9);
-        localStorage.setItem('sessionId', id);
+        localStorage.setItem(storageKey, id);
       }
       return id;
     }
 
-    document.getElementById('merchant-name-display').textContent = getMerchantId();
+    document.getElementById('merchant-id-display').textContent = getMerchantId();
 
     async function refreshDashboard() {
       try {
@@ -526,6 +539,30 @@
           document.getElementById('rate-recovery').textContent = `${data.performanceRates.recoveryRate.toFixed(0)}%`;
           document.getElementById('rate-repeat').textContent = `${data.performanceRates.repeatPurchaseRate.toFixed(0)}%`;
         }
+
+        // Render opportunity feed
+        if (data.opportunities && data.opportunities.length > 0) {
+          const oppListDiv = document.getElementById('opportunity-list');
+          oppListDiv.innerHTML = '';
+          data.opportunities.slice(-5).reverse().forEach(opp => {
+            const item = document.createElement('div');
+            item.className = 'opportunity-item';
+            
+            let statusBadgeClass = 'badge';
+            if (opp.status === 'CONVERTED') statusBadgeClass += ' success';
+            else if (opp.status === 'ACCEPTED') statusBadgeClass += ' cyan';
+            else if (opp.status === 'REJECTED') statusBadgeClass += ' warning';
+
+            item.innerHTML = `
+              <div>
+                <strong>${opp.opportunityType}</strong>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">Impact: ₹${(opp.expectedImpactMinor / 100).toFixed(2)}</div>
+              </div>
+              <span class="${statusBadgeClass}">${opp.status}</span>
+            `;
+            oppListDiv.appendChild(item);
+          });
+        }
       } catch (e) {
         console.error('Failed to load dashboard:', e);
       }
@@ -540,10 +577,47 @@
       if (genuiCard) {
         const cardDiv = document.createElement('div');
         cardDiv.className = 'genui-card';
+        
+        let bodyHtml = '';
+        let buttonsHtml = '';
+
+        if (genuiCard.type === 'APPROVAL') {
+          bodyHtml = `<pre style="white-space: pre-wrap; font-family: monospace; font-size: 0.78rem;">${JSON.stringify(genuiCard.data, null, 2)}</pre>`;
+          buttonsHtml = `
+            <div style="display: flex; gap: 8px; margin-top: 10px;">
+              <button class="action-btn" onclick="decideApproval('${genuiCard.data.opportunityId}', 'APPROVE')">Approve</button>
+              <button class="action-btn danger" onclick="decideApproval('${genuiCard.data.opportunityId}', 'REJECT')">Reject</button>
+            </div>
+          `;
+        } else if (genuiCard.type === 'OFFER' || genuiCard.type === 'RECOVERY') {
+          const amount = (genuiCard.data.expectedImpactValue || genuiCard.data.discountBps || 0) / 100;
+          bodyHtml = `
+            <div style="margin-bottom: 8px; color: var(--text-main);">
+              <strong>${genuiCard.data.evidence || genuiCard.data.reason || 'Special opportunity.'}</strong>
+            </div>
+            ${amount > 0 ? `<div style="font-size: 0.9rem; color: var(--accent-cyan);">Value: ₹${amount.toFixed(2)}</div>` : ''}
+          `;
+          buttonsHtml = `
+            <div style="display: flex; gap: 8px; margin-top: 10px;">
+              <button class="action-btn" onclick="sendMessage('Yes, please add that to my order.', this)">Accept Offer</button>
+              <button class="action-btn secondary" onclick="sendMessage('No thanks, skip this.', this)">No Thanks</button>
+            </div>
+          `;
+        } else {
+          bodyHtml = `<pre style="white-space: pre-wrap; font-family: monospace; font-size: 0.78rem;">${JSON.stringify(genuiCard.data, null, 2)}</pre>`;
+        }
+
         cardDiv.innerHTML = `
-          <div class="genui-card-title">${genuiCard.title}</div>
-          <div class="genui-card-body">${JSON.stringify(genuiCard.data, null, 2)}</div>
+          <div class="genui-card-header">
+            <span class="genui-card-title">${genuiCard.title}</span>
+            <span class="badge cyan">${genuiCard.type}</span>
+          </div>
+          <div class="genui-card-body">
+            ${bodyHtml}
+            ${buttonsHtml}
+          </div>
         `;
+
         bubble.appendChild(cardDiv);
       }
 
@@ -551,12 +625,33 @@
       container.scrollTop = container.scrollHeight;
     }
 
-    async function sendMessage() {
+    async function decideApproval(opportunityId, decision) {
+      try {
+        const merchantId = getMerchantId();
+        const res = await fetch('/api/approval/decide', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ opportunityId, merchantId, decision, approverId: 'human_operator_1' })
+        });
+        const data = await res.json();
+        appendMessage('assistant', `Human Approval Action: ${decision} executed for opportunity ${opportunityId}. Status: ${data.status}`);
+        refreshDashboard();
+      } catch (e) {
+        appendMessage('assistant', 'Error submitting approval decision.');
+      }
+    }
+
+    async function sendMessage(overrideText = null, buttonElem = null) {
+      if (buttonElem) {
+        buttonElem.disabled = true;
+        buttonElem.innerText = 'Processing...';
+        buttonElem.style.opacity = '0.5';
+      }
       const input = document.getElementById('chat-input');
-      const text = input.value.trim();
+      const text = overrideText || input.value.trim();
       if (!text) return;
       
-      input.value = '';
+      if (!overrideText) input.value = '';
       appendMessage('user', text);
 
       try {
@@ -572,10 +667,10 @@
         const data = await res.json();
         
         if (data.checkoutData) {
-          appendMessage('assistant', data.response || 'Checkout ready. Launching Razorpay payment modal...');
+          appendMessage('assistant', data.response || 'Checkout ready. Launching Razorpay payment modal...', data.genuiCard);
           launchRazorpay(data.checkoutData);
         } else {
-          appendMessage('assistant', data.response || 'Request processed.');
+          appendMessage('assistant', data.response || 'Request processed.', data.genuiCard);
         }
 
         refreshDashboard();

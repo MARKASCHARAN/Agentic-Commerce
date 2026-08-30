@@ -110,6 +110,55 @@ const agentRuntime = new AgentRuntime({
       const merchant = await prisma.merchant.findUnique({ where: { id: merchantId } });
       const merchantName = merchant?.name ?? merchantId;
 
+      // Context Hydration for Revenue Intelligence
+      const allOrders = await prisma.commerceOrder.findMany({
+        where: { sessionId, merchantId },
+        orderBy: { createdAt: 'desc' },
+        include: { items: true }
+      });
+
+      const lastOrder = allOrders[0];
+      const completedOrders = allOrders.filter(o => ['completed', 'paid', 'captured'].includes(o.status));
+
+      let paymentFailed = false;
+      let checkoutAbandoned = false;
+      let replenishmentDue = false;
+      let currentPlanId: string | undefined = undefined;
+
+      if (lastOrder) {
+        if (lastOrder.status === 'failed') {
+          paymentFailed = true;
+        } else if (lastOrder.status === 'pending' || lastOrder.status === 'created') {
+          checkoutAbandoned = true;
+        }
+      }
+
+      if (completedOrders.length > 0) {
+        currentPlanId = completedOrders[0].items[0]?.productId;
+
+        for (const order of completedOrders) {
+          for (const item of order.items) {
+            const product = await prisma.product.findUnique({ where: { id: item.productId } });
+            if (product && product.description) {
+              const repMatch = product.description.match(/<!--\s*replenishmentDays:\s*(\d+)\s*-->/);
+              if (repMatch) {
+                const days = parseInt(repMatch[1], 10);
+                const orderDate = new Date(order.createdAt);
+                const daysSinceOrder = (new Date().getTime() - orderDate.getTime()) / (1000 * 60 * 60 * 24);
+                if (daysSinceOrder >= days) {
+                  replenishmentDue = true;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      const buyerRequestedReorder = /reorder|buy again|replenish|order again/i.test(task);
+      const upgradeMatch = task.match(/(?:upgrade|add)(?:\s+to)?\s+(\d+)\s+seats?/i);
+      const requestedSeats = upgradeMatch ? parseInt(upgradeMatch[1], 10) : undefined;
+      const wantsUpgrade = /upgrade/i.test(task) || requestedSeats !== undefined;
+
       console.log(`[E2E State Diagnostics]
 - sessionId: ${sessionId}
 - executionId: ${identity.executionId}
@@ -131,6 +180,13 @@ const agentRuntime = new AgentRuntime({
           cartProductIds,
           rejectedOpportunities: cart.rejectedOpportunities,
           merchantName,
+          paymentFailed,
+          checkoutAbandoned,
+          replenishmentDue,
+          currentPlanId,
+          buyerRequestedReorder,
+          requestedSeats,
+          wantsUpgrade
         }
       };
     },
@@ -187,12 +243,35 @@ router.post('/chat', async (req: Request, res: Response) => {
     // but we add a version or prefix so it breaks cache from previous runs.
     const executionId = crypto.createHash('sha256').update(`v9-${sessionId}-${message.toLowerCase().trim()}`).digest('hex');
 
+    const executionStartTime = new Date();
     // We invoke the REAL AgentRuntime which triggers the REAL ToolGateway -> REAL Providers
     const result = await agentRuntime.execute({
       sessionId,
       executionId,
       merchantId
     }, message);
+
+    // After execution, check if a NEW opportunity was proposed
+    const latestOpp = await prisma.revenueOpportunityLog.findFirst({
+      where: { sessionId, merchantId, status: 'PROPOSED', createdAt: { gte: executionStartTime } },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    let genuiCard: any = undefined;
+    if (latestOpp) {
+      if (latestOpp.opportunityType === 'RECOVERY') {
+        genuiCard = GenUIBuilder.renderRecovery(latestOpp.id, 'Special offer to complete your order', 1000, []);
+      } else {
+        genuiCard = GenUIBuilder.renderOffer({
+          id: latestOpp.id,
+          type: latestOpp.opportunityType,
+          expectedImpactValue: latestOpp.expectedImpactMinor,
+          confidence: 0.95,
+          evidence: 'Recommended based on your current selection.',
+          proposedAction: { priceMinor: latestOpp.expectedImpactMinor }
+        });
+      }
+    }
 
     if (result.action === 'FINAL_RESPONSE') {
       const responseText = (result.payload as any).text || result.payload;
@@ -208,7 +287,7 @@ router.post('/chat', async (req: Request, res: Response) => {
         }
       });
 
-      res.json({ response: responseText });
+      res.json({ response: responseText, genuiCard });
     } else if (result.action === 'TOOL_REQUEST') {
       const toolOutput = result.payload.result as any;
       if (toolOutput.checkoutData) {
@@ -239,7 +318,8 @@ router.post('/chat', async (req: Request, res: Response) => {
 
         res.json({ 
           response: responseText,
-          checkoutData
+          checkoutData,
+          genuiCard
         });
       } else if (toolOutput.products) {
         const productList = toolOutput.products.map((p: any) => `${p.name} - ${p.currency || 'INR'} ${p.priceMinor / 100}`).join('\n');
@@ -256,7 +336,7 @@ router.post('/chat', async (req: Request, res: Response) => {
           }
         });
 
-        res.json({ response: responseText });
+        res.json({ response: responseText, genuiCard });
       } else {
         const responseText = 'Tool executed.';
         // Save agent response to DB
@@ -270,7 +350,7 @@ router.post('/chat', async (req: Request, res: Response) => {
           }
         });
 
-        res.json({ response: responseText, data: toolOutput });
+        res.json({ response: responseText, data: toolOutput, genuiCard });
       }
     }
   } catch (error: any) {
@@ -278,6 +358,110 @@ router.post('/chat', async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+export async function getDashboardMetrics(prisma: PrismaClient, merchantId: string) {
+  const scanner = new BackgroundCommerceScanner(prisma);
+  await scanner.scanAll(merchantId);
+
+  const orders = await prisma.commerceOrder.findMany({ where: { merchantId } });
+  
+  // We only include payments related to these orders to scope to the merchant
+  const orderIds = orders.map(o => o.id);
+  const payments = await prisma.paymentIntent.findMany({
+    where: { orderId: { in: orderIds } }
+  });
+  
+  const opps = await prisma.revenueOpportunityLog.findMany({
+    where: { merchantId }
+  });
+
+  const sessions = await prisma.session.findMany({
+    where: { merchantId }
+  });
+
+  // Partition sessions & orders by A/B experiment group
+  const assistedSessions = sessions.filter(s => getSessionExperimentGroup(s.id) === 'ASSISTED');
+  const controlSessions = sessions.filter(s => getSessionExperimentGroup(s.id) === 'CONTROL');
+
+  const completedOrders = orders.filter(o => o.status === 'captured' || o.status === 'completed' || o.status === 'paid');
+  const assistedOrders = completedOrders.filter(o => getSessionExperimentGroup(o.sessionId) === 'ASSISTED');
+  const controlOrders = completedOrders.filter(o => getSessionExperimentGroup(o.sessionId) === 'CONTROL');
+
+  const totalRevenue = completedOrders.reduce((sum, o) => sum + o.total, 0);
+  const assistedRevenue = assistedOrders.reduce((sum, o) => sum + o.total, 0);
+  const controlRevenue = controlOrders.reduce((sum, o) => sum + o.total, 0);
+
+  const convertedOpps = opps.filter(o => o.status === 'CONVERTED');
+  const aiAssistedRevenue = convertedOpps.reduce((sum, o) => sum + (o.realizedImpactMinor || 0) / 100, 0);
+
+  const assistedAOV = assistedOrders.length > 0 ? assistedRevenue / assistedOrders.length : 0;
+  const controlAOV = controlOrders.length > 0 ? controlRevenue / controlOrders.length : 0;
+
+  const assistedConvRate = assistedSessions.length > 0 ? (assistedOrders.length / assistedSessions.length) * 100 : 0;
+  const controlConvRate = controlSessions.length > 0 ? (controlOrders.length / controlSessions.length) * 100 : 0;
+
+  const assistedRevPerSession = assistedSessions.length > 0 ? assistedRevenue / assistedSessions.length : 0;
+  const controlRevPerSession = controlSessions.length > 0 ? controlRevenue / controlSessions.length : 0;
+
+  const conversionUplift = assistedConvRate - controlConvRate;
+  const aovUplift = assistedAOV - controlAOV;
+  const revPerSessionUplift = assistedRevPerSession - controlRevPerSession;
+
+  // Measured Opportunity Performance Rates
+  const calcRate = (type: string) => {
+    const typeOpps = opps.filter(o => o.opportunityType === type);
+    if (typeOpps.length === 0) return 0;
+    const converted = typeOpps.filter(o => o.status === 'CONVERTED');
+    return (converted.length / typeOpps.length) * 100;
+  };
+
+  const upsellRate = calcRate('UPSELL');
+  const crossSellRate = calcRate('CROSS_SELL');
+  const recoveryRate = calcRate('RECOVERY');
+  const repeatPurchaseRate = calcRate('REPEAT_PURCHASE');
+
+  return {
+    merchantId,
+    totalOrders: orders.length,
+    totalRevenue,
+    aiAssistedRevenue,
+    incrementalRevenue: aiAssistedRevenue,
+    convertedOpportunities: convertedOpps.length,
+    performanceRates: {
+      upsellRate,
+      crossSellRate,
+      recoveryRate,
+      repeatPurchaseRate
+    },
+    // Cohort details
+    cohorts: {
+      assisted: {
+        sessions: assistedSessions.length,
+        orders: assistedOrders.length,
+        revenue: assistedRevenue,
+        aov: assistedAOV,
+        conversionRate: assistedConvRate,
+        revenuePerSession: assistedRevPerSession
+      },
+      control: {
+        sessions: controlSessions.length,
+        orders: controlOrders.length,
+        revenue: controlRevenue,
+        aov: controlAOV,
+        conversionRate: controlConvRate,
+        revenuePerSession: controlRevPerSession
+      },
+      uplift: {
+        conversionRate: conversionUplift,
+        aov: aovUplift,
+        revenuePerSession: revPerSessionUplift
+      }
+    },
+    orders,
+    payments,
+    opportunities: opps
+  };
+}
 
 router.get('/dashboard', async (req: Request, res: Response) => {
   try {
@@ -288,107 +472,8 @@ router.get('/dashboard', async (req: Request, res: Response) => {
       return;
     }
 
-    const scanner = new BackgroundCommerceScanner(prisma);
-    await scanner.scanAll(merchantId);
-
-    const orders = await prisma.commerceOrder.findMany({ where: { merchantId } });
-    
-    // We only include payments related to these orders to scope to the merchant
-    const orderIds = orders.map(o => o.id);
-    const payments = await prisma.paymentIntent.findMany({
-      where: { orderId: { in: orderIds } }
-    });
-    
-    const opps = await prisma.revenueOpportunityLog.findMany({
-      where: { merchantId }
-    });
-
-    const sessions = await prisma.session.findMany({
-      where: { merchantId }
-    });
-
-    // Partition sessions & orders by A/B experiment group
-    const assistedSessions = sessions.filter(s => getSessionExperimentGroup(s.id) === 'ASSISTED');
-    const controlSessions = sessions.filter(s => getSessionExperimentGroup(s.id) === 'CONTROL');
-
-    const completedOrders = orders.filter(o => o.status === 'captured' || o.status === 'completed' || o.status === 'paid');
-    const assistedOrders = completedOrders.filter(o => getSessionExperimentGroup(o.sessionId) === 'ASSISTED');
-    const controlOrders = completedOrders.filter(o => getSessionExperimentGroup(o.sessionId) === 'CONTROL');
-
-    const totalRevenue = completedOrders.reduce((sum, o) => sum + o.total, 0);
-    const assistedRevenue = assistedOrders.reduce((sum, o) => sum + o.total, 0);
-    const controlRevenue = controlOrders.reduce((sum, o) => sum + o.total, 0);
-
-    const convertedOpps = opps.filter(o => o.status === 'CONVERTED');
-    const aiAssistedRevenue = convertedOpps.reduce((sum, o) => sum + (o.realizedImpactMinor || 0) / 100, 0);
-
-    const assistedAOV = assistedOrders.length > 0 ? assistedRevenue / assistedOrders.length : 0;
-    const controlAOV = controlOrders.length > 0 ? controlRevenue / controlOrders.length : 0;
-
-    const assistedConvRate = assistedSessions.length > 0 ? (assistedOrders.length / assistedSessions.length) * 100 : 0;
-    const controlConvRate = controlSessions.length > 0 ? (controlOrders.length / controlSessions.length) * 100 : 0;
-
-    const assistedRevPerSession = assistedSessions.length > 0 ? assistedRevenue / assistedSessions.length : 0;
-    const controlRevPerSession = controlSessions.length > 0 ? controlRevenue / controlSessions.length : 0;
-
-    const conversionUplift = assistedConvRate - controlConvRate;
-    const aovUplift = assistedAOV - controlAOV;
-    const revPerSessionUplift = assistedRevPerSession - controlRevPerSession;
-
-    // Measured Opportunity Performance Rates
-    const calcRate = (type: string) => {
-      const typeOpps = opps.filter(o => o.opportunityType === type);
-      if (typeOpps.length === 0) return 0;
-      const converted = typeOpps.filter(o => o.status === 'CONVERTED');
-      return (converted.length / typeOpps.length) * 100;
-    };
-
-    const upsellRate = calcRate('UPSELL');
-    const crossSellRate = calcRate('CROSS_SELL');
-    const recoveryRate = calcRate('RECOVERY');
-    const repeatPurchaseRate = calcRate('REPEAT_PURCHASE');
-
-    res.json({
-      merchantId,
-      totalOrders: orders.length,
-      totalRevenue,
-      aiAssistedRevenue,
-      incrementalRevenue: aiAssistedRevenue,
-      convertedOpportunities: convertedOpps.length,
-      performanceRates: {
-        upsellRate,
-        crossSellRate,
-        recoveryRate,
-        repeatPurchaseRate
-      },
-      // Cohort details
-      cohorts: {
-        assisted: {
-          sessions: assistedSessions.length,
-          orders: assistedOrders.length,
-          revenue: assistedRevenue,
-          aov: assistedAOV,
-          conversionRate: assistedConvRate,
-          revenuePerSession: assistedRevPerSession
-        },
-        control: {
-          sessions: controlSessions.length,
-          orders: controlOrders.length,
-          revenue: controlRevenue,
-          aov: controlAOV,
-          conversionRate: controlConvRate,
-          revenuePerSession: controlRevPerSession
-        },
-        uplift: {
-          conversionRate: conversionUplift,
-          aov: aovUplift,
-          revenuePerSession: revPerSessionUplift
-        }
-      },
-      orders,
-      payments,
-      opportunities: opps
-    });
+    const metrics = await getDashboardMetrics(prisma, merchantId);
+    res.json(metrics);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

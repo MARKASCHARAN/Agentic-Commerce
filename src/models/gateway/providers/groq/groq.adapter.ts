@@ -14,7 +14,7 @@ export class GroqAdapter implements ModelProvider {
 
   async generate(options: GenerateOptions): Promise<ModelResponse> {
     const startTime = Date.now();
-    const modelId = options.model || 'openai/gpt-oss-120b';
+    const modelId = options.model || process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
     
     const result = await generateText({
       model: this.groq(modelId),
@@ -42,7 +42,7 @@ export class GroqAdapter implements ModelProvider {
   }
 
   async stream(options: GenerateOptions): Promise<ModelStreamResponse> {
-    const modelId = options.model || 'openai/gpt-oss-120b';
+    const modelId = options.model || process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
     
     const result = await streamText({
       model: this.groq(modelId),
@@ -62,7 +62,7 @@ export class GroqAdapter implements ModelProvider {
 
   async structured<T>(options: StructuredOptions<T>): Promise<ModelStructuredResponse<T>> {
     const startTime = Date.now();
-    const modelId = options.model || 'openai/gpt-oss-120b';
+    const modelId = options.model || process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
     
     const result = await generateObject({
       model: this.groq(modelId),
@@ -92,18 +92,38 @@ export class GroqAdapter implements ModelProvider {
 
   async chat(options: import('../../types').ChatOptions): Promise<import('../../types').ChatResponse> {
     const startTime = Date.now();
-    const modelId = options.model || 'openai/gpt-oss-120b';
+    const modelId = options.model || process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
     
-    const result = await generateText({
-      model: this.groq(modelId),
-      messages: options.messages as any,
-      system: options.system,
-      temperature: options.temperature,
-      // @ts-ignore
-      maxTokens: options.maxTokens,
-      tools: options.tools,
-      maxSteps: options.maxSteps || 1
-    });
+    let result;
+    try {
+      result = await generateText({
+        model: this.groq(modelId),
+        messages: options.messages as any,
+        system: options.system,
+        temperature: options.temperature,
+        // @ts-ignore
+        maxTokens: options.maxTokens,
+        tools: options.tools,
+        maxSteps: options.maxSteps || 1
+      });
+    } catch (err: any) {
+      if (err?.statusCode === 429 || err?.status === 429 || String(err?.message).includes('Rate limit')) {
+        const fallbackModelId = 'openai/gpt-oss-20b';
+        console.warn(`Groq primary model ${modelId} rate limited, retrying with ${fallbackModelId}...`);
+        result = await generateText({
+          model: this.groq(fallbackModelId),
+          messages: options.messages as any,
+          system: options.system,
+          temperature: options.temperature,
+          // @ts-ignore
+          maxTokens: options.maxTokens,
+          tools: options.tools,
+          maxSteps: options.maxSteps || 1
+        });
+      } else {
+        throw err;
+      }
+    }
 
     return {
       text: result.text,

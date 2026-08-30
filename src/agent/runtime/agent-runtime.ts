@@ -9,7 +9,7 @@ import {
   SkillExecutionRequest,
   SkillExecutionResult
 } from './types';
-import { rejectOpportunity } from '../cart/cart-state';
+import { rejectOpportunity, updateCartItems } from '../cart/cart-state';
 import { PrismaCatalogProvider } from '../../catalog/prisma-catalog.provider';
 import { SkillNotFoundError, SkillValidationError } from '../skills/errors';
 
@@ -105,6 +105,58 @@ export class AgentRuntime {
         context.runtimeMetadata = updatedContext.runtimeMetadata;
       }
 
+      // 1. Intent Detection
+      const intentMatch = task.trim().match(/^(?:i\s+want\s+to\s+)?(?:buy|checkout|purchase|pay|get|order)(?:\s+(?:the\s+)?(.+))?$/i);
+      const isPurchaseIntent = !!intentMatch;
+      
+      const currentCartItems = context.scopedData?.cartItems || [];
+      if (isPurchaseIntent && currentCartItems.length === 0 && this.deps.prisma && identity.merchantId) {
+        let productRef = intentMatch[1] ? intentMatch[1].trim() : null;
+        if (productRef && /^(this|that|it)$/i.test(productRef)) {
+          productRef = null;
+        }
+        let candidateProductId: string | null = null;
+        const catalogProvider = new PrismaCatalogProvider(this.deps.prisma);
+
+        // 2. Product Resolution
+        if (productRef) {
+          // If a specific product was mentioned, search for it
+          const searchResults = await catalogProvider.search(identity.merchantId, productRef);
+          if (searchResults.length > 0) {
+            candidateProductId = searchResults[0].id;
+          }
+        }
+
+        if (!candidateProductId) {
+          // Fall back to tracing backward through conversation for the most recent catalog search result
+          const messages = context.conversation?.messages || [];
+          for (let i = messages.length - 1; i >= 0; i--) {
+            const msg = messages[i];
+            const content = typeof msg.content === 'string' ? msg.content : '';
+            const match = content.match(/productId:\s*([a-zA-Z0-9_\-]+)/);
+            if (match && match[1]) {
+              candidateProductId = match[1];
+              break;
+            }
+          }
+        }
+
+        // 3. Authorization and Cart Population
+        if (candidateProductId) {
+          const product = await catalogProvider.get(identity.merchantId, candidateProductId);
+          const inventory = await catalogProvider.check(identity.merchantId, candidateProductId);
+          // If a product is active, we authorize it. If inventory exists, we ensure quantity > 0. If inventory doesn't exist, we assume it's digital/SaaS.
+          if (product && product.active && (!inventory || inventory.quantity > 0)) {
+            await updateCartItems(this.deps.prisma, identity.sessionId, [{ productId: candidateProductId, quantity: 1 }]);
+            
+            // Reload context to reflect updated cart state
+            const updatedContext = await this.deps.stateManager.loadContext(identity, task);
+            context.scopedData = updatedContext.scopedData;
+            context.runtimeMetadata = updatedContext.runtimeMetadata;
+          }
+        }
+      }
+
       // --- GUARDRAIL RESOLUTION ---
       // Guardrails are fetched server-side using the authenticated merchantId.
       // The LLM never sees raw limits and cannot modify them.
@@ -183,8 +235,11 @@ Rules:
 2. Never invent cart items or calculate/modify/invent prices. The checkout tool determines the authoritative amount.
 3. Never add a product merely because an opportunity exists. A proposed cross-sell (ACTIVE OPPORTUNITY) requires explicit buyer acceptance.
 4. A rejected opportunity (REJECTED OPPORTUNITIES) must never be proposed or added again.
-5. "buy", "checkout", "purchase", or "pay" means proceed with the currently authorized cart using the checkout.create tool.
-6. Do not call catalog.search merely to rediscover products already present in the AUTHORITATIVE CART.
+5. When the buyer says "buy", "checkout", "purchase", or "pay":
+   a. If items are in the AUTHORITATIVE CART, invoke checkout.create with no items (it uses the cart).
+   b. If the AUTHORITATIVE CART is empty, identify the specific product from the recent conversation/search history and call checkout.create({ productId: "<productId>", quantity: 1 }).
+   c. If multiple products were shown and it is ambiguous which one the buyer wants, ask the buyer to specify which product before calling checkout.create.
+6. Do not call catalog.search merely to rediscover products already present in the conversation history or AUTHORITATIVE CART.
 7. All financial actions MUST go through ToolGateway. Never bypass PolicyEngine, RiskGate, or IdempotencyEngine.
 8. Do never infer a revenue opportunity from your own reasoning when the runtime has already provided the authoritative ACTIVE OPPORTUNITY state in Metadata.`;
 

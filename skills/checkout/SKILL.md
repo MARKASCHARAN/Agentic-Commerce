@@ -2,7 +2,7 @@
 name: checkout
 description: Initiate a checkout process.
 requiredCapabilities:
-  - order.create
+  - checkout.create
 ---
 
 # Checkout
@@ -14,7 +14,7 @@ Initiate a checkout process for the buyer's selected items.
 Use when the buyer is ready to purchase and needs an order created.
 
 ## Required capabilities
-- order.create
+- checkout.create
 
 ## Inputs
 - list of items and quantities
@@ -22,6 +22,7 @@ Use when the buyer is ready to purchase and needs an order created.
 ## Rules
 - Never bypass merchant policy.
 - Never directly execute payment without ToolGateway.
+- When the buyer says "buy", "checkout", or "purchase" for a product recently searched or displayed in the conversation, use that product's productId and call checkout.create with quantity 1.
 
 ## Expected output
 An order reference ready for payment.

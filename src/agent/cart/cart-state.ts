@@ -15,6 +15,11 @@ export async function getOrCreateCart(
   });
 
   if (!cart) {
+    await prisma.session.upsert({
+      where: { id: sessionId },
+      update: {},
+      create: { id: sessionId }
+    });
     cart = await prisma.cart.create({
       data: {
         sessionId,

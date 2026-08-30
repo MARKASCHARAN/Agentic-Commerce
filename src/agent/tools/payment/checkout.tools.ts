@@ -13,12 +13,12 @@ export const createCheckoutTool = (
   prisma: PrismaClient
 ): Tool<z.infer<typeof checkoutSchema>, any> => {
   const checkoutSchema = z.object({
-    productId: z.string().optional().describe('The ID of the product to checkout'),
-    quantity: z.number().int().positive().optional().describe('The quantity of the product to checkout'),
+    productId: z.string().optional().nullable().describe('The ID of the product to checkout'),
+    quantity: z.number().int().positive().optional().nullable().describe('The quantity of the product to checkout'),
     items: z.array(z.object({
       productId: z.string(),
       quantity: z.number().int().positive(),
-    })).optional().describe('List of items to checkout'),
+    })).optional().nullable().describe('List of items to checkout'),
   });
 
   return {
@@ -53,7 +53,7 @@ export const createCheckoutTool = (
         // Determine target items for checkout
         const itemsToProcess = input.items && input.items.length > 0
           ? input.items
-          : (input.productId && input.quantity ? [{ productId: input.productId, quantity: input.quantity }] : []);
+          : (input.productId && input.quantity ? [{ productId: input.productId, quantity: input.quantity }] : (cartItems && cartItems.length > 0 ? cartItems : []));
 
         if (itemsToProcess.length === 0) {
           throw new Error('No items provided for checkout');
@@ -222,6 +222,7 @@ export const createCheckoutTool = (
           notes: {
             sessionId: context.sessionId,
             merchantId: context.merchantId,
+            receipt: order.id
           }
         }, context.idempotencyKey);
 
@@ -257,10 +258,21 @@ export const createCheckoutTool = (
         });
         for (const opp of acceptedOpps) {
           const resourceId = (opp as any).proposedAction?.resourceId || Array.from(complements).find(cid => !currentCartProductIds.includes(cid));
-          if (!resourceId) {
+          
+          let isAcceptedInOrder = false;
+          if (resourceId) {
+             isAcceptedInOrder = orderItemsData.some(item => item.productId === resourceId);
+          } else {
+             const cartAccepted = new Set(cart.acceptedOpportunities as string[]);
+             if (cartAccepted.has(opp.id)) {
+                 isAcceptedInOrder = orderItemsData.some(item => cartAccepted.has(item.productId));
+             }
+          }
+
+          if (!resourceId && !isAcceptedInOrder) {
             throw new Error('Security Exception: Opportunity does not contain an authoritative complement product ID.');
           }
-          const isAcceptedInOrder = orderItemsData.some(item => item.productId === resourceId);
+
           if (isAcceptedInOrder) {
             await prisma.revenueOpportunityLog.update({
               where: { id: opp.id },

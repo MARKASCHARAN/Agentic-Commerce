@@ -405,11 +405,10 @@ describe.sequential('Phase 16: Durable Outbox', () => {
       await idempotentHandler(claimed[0]);
       expect(sideEffectCount).toBe(1);
 
-      await prisma.$executeRaw`
-        UPDATE "OutboxEvent"
-        SET status = 'PENDING', "updatedAt" = NOW()
-        WHERE "eventId" = ${eventId}
-      `;
+      await prisma.outboxEvent.update({
+        where: { eventId },
+        data: { availableAt: new Date(Date.now() - 1000) }
+      });
 
       const reClaimed = await outboxRepo.claimNext(1);
       expect(reClaimed.length).toBe(1);

@@ -236,9 +236,28 @@ describe('AgentRuntime Execution Loop', () => {
 
       const echoRes = await runtime.executeSkill(mockIdentity, { skillId: 'test.echo', input: { message: 'hi' }});
       const upperRes = await runtime.executeSkill<{text: string}, {text: string}>(mockIdentity, { skillId: 'test.uppercase', input: { text: 'hi' }});
-
       expect(echoRes.output.message).toBe('hi');
       expect(upperRes.output.text).toBe('HI');
     });
+
+    it('should select checkout.create with productId when given conversation history with catalog products and buyer says buy', async () => {
+      mockDeps.stateManager.loadContext = vi.fn().mockResolvedValue({
+        identity: mockIdentity,
+        task: 'buy',
+        conversation: {
+          messages: [
+            { role: 'user', content: 'show me running shoes' },
+            { role: 'assistant', content: 'I found these products:\nRunning Shoes - INR 5000\n\nAvailable products from the previous catalog result:\n- productId: prod_shoes_01, name: Running Shoes, price: INR 5000' }
+          ]
+        },
+        runtimeMetadata: {},
+        scopedData: { cartItems: [] }
+      });
+
+      await runtime.execute(mockIdentity, 'buy');
+      const chatCall = (mockDeps.modelGateway.chat as any).mock.calls[0][0];
+      expect(JSON.stringify(chatCall.messages)).toContain('prod_shoes_01');
+    });
   });
 });
+

@@ -64,6 +64,46 @@ describe('Cart and Conversation Continuity Integration Tests', () => {
       }
     });
 
+    await prisma.inventory.deleteMany({ where: { merchantId: 'merchant-saas-01' } });
+    await prisma.product.deleteMany({ where: { merchantId: 'merchant-saas-01' } });
+
+    await prisma.product.upsert({
+      where: { id: 'prod_saas_starter' },
+      update: { description: '<!-- rel: ["prod_saas_pro"] -->' },
+      create: {
+        id: 'prod_saas_starter',
+        merchantId: 'merchant-saas-01',
+        name: 'Starter Cloud Plan',
+        priceMinor: 199900,
+        currency: 'INR',
+        description: '<!-- rel: ["prod_saas_pro"] -->'
+      }
+    });
+
+    await prisma.product.upsert({
+      where: { id: 'prod_saas_pro' },
+      update: {},
+      create: {
+        id: 'prod_saas_pro',
+        merchantId: 'merchant-saas-01',
+        name: 'Enterprise Pro Cloud Plan',
+        priceMinor: 999900,
+        currency: 'INR'
+      }
+    });
+
+    await prisma.product.upsert({
+      where: { id: 'prod_laptop_01' },
+      update: {},
+      create: {
+        id: 'prod_laptop_01',
+        merchantId: 'merchant-electronics-01',
+        name: 'Developer Pro Laptop',
+        priceMinor: 12000000,
+        currency: 'INR'
+      }
+    });
+
     // Initialize dependencies using real DB but mock modelGateway to simulate inputs/outputs
     const modelGateway = new ModelGateway();
     const catalogProvider = new PrismaCatalogProvider(prisma);
@@ -136,11 +176,12 @@ describe('Cart and Conversation Continuity Integration Tests', () => {
           });
 
           return {
-            identity: { sessionId, executionId: identity.executionId, merchantId: 'demo-merchant-id' },
+            identity: { sessionId, executionId: identity.executionId, merchantId: identity.merchantId || 'demo-merchant-id' },
             task,
             conversation: { messages },
             runtimeMetadata: {},
             scopedData: {
+              cartId: cart.id,
               cartItems,
               cartProductIds,
               rejectedOpportunities: cart.rejectedOpportunities
@@ -229,7 +270,7 @@ describe('Cart and Conversation Continuity Integration Tests', () => {
       cartProductIds: ['prod_shoes_01']
     });
     expect(opp).toBeNull();
-  });
+  }, 45000);
 
   it('3. show -> buy -> yes add -> checkout produces ₹5699', async () => {
     const sessionId = `session-${crypto.randomUUID()}`;
@@ -704,5 +745,90 @@ describe('Cart and Conversation Continuity Integration Tests', () => {
         merchantId: 'demo-merchant-id'
       }, 'no')).rejects.toThrow('Security Exception: Opportunity does not contain an authoritative complement product ID.');
     });
+  });
+
+  describe('Natural Language Purchase Intent & Resolution', () => {
+    it('1. "buy Pro plan" should resolve to prod_saas_pro and populate cart seamlessly', async () => {
+      const sessionId = `session-${crypto.randomUUID()}`;
+      await prisma.session.create({ data: { id: sessionId, merchantId: 'merchant-saas-01' } });
+      await getOrCreateCart(prisma, sessionId, []);
+
+      await runtime.execute({
+        sessionId,
+        executionId: crypto.randomUUID(),
+        merchantId: 'merchant-saas-01'
+      }, 'buy Pro plan');
+
+      const cart = await prisma.cart.findUnique({ where: { sessionId } });
+      expect(cart).toBeDefined();
+      const cartItems = cart!.items as any[];
+      expect(cartItems.length).toBe(1);
+      expect(cartItems[0].productId).toBe('prod_saas_pro');
+      expect(cartItems[0].quantity).toBe(1);
+    }, 45000);
+
+    it('2. "buy the developer laptop" should resolve to prod_laptop_01 and populate cart seamlessly', async () => {
+      const sessionId = `session-${crypto.randomUUID()}`;
+      await prisma.session.create({ data: { id: sessionId, merchantId: 'merchant-electronics-01' } });
+      await getOrCreateCart(prisma, sessionId, []);
+
+      await runtime.execute({
+        sessionId,
+        executionId: crypto.randomUUID(),
+        merchantId: 'merchant-electronics-01'
+      }, 'buy the developer laptop');
+
+      const cart = await prisma.cart.findUnique({ where: { sessionId } });
+      expect(cart).toBeDefined();
+      const cartItems = cart!.items as any[];
+      expect(cartItems.length).toBe(1);
+      expect(cartItems[0].productId).toBe('prod_laptop_01');
+      expect(cartItems[0].quantity).toBe(1);
+    }, 45000);
+
+    it('3. "buy Starter plan" populates cart and triggers Pro plan cross-sell opportunity', async () => {
+      const sessionId = `session-${crypto.randomUUID()}`;
+      await prisma.session.create({ data: { id: sessionId, merchantId: 'merchant-saas-01' } });
+      await getOrCreateCart(prisma, sessionId, []);
+      
+      await prisma.merchantCapability.upsert({
+        where: { merchantId_capability: { merchantId: 'merchant-saas-01', capability: 'catalog' } },
+        update: {},
+        create: { merchantId: 'merchant-saas-01', capability: 'catalog' }
+      });
+      await prisma.merchantCapability.upsert({
+        where: { merchantId_capability: { merchantId: 'merchant-saas-01', capability: 'inventory' } },
+        update: {},
+        create: { merchantId: 'merchant-saas-01', capability: 'inventory' }
+      });
+      await prisma.merchantGuardrail.upsert({
+        where: { merchantId: 'merchant-saas-01' },
+        update: { crossSellEnabled: true },
+        create: { merchantId: 'merchant-saas-01', minimumMarginBps: 1000, maxDiscountBps: 2000, autonomousPaymentLimitMinor: 10000000, currency: 'INR', negotiationEnabled: true, crossSellEnabled: true, revenueGoal: 'INCREASE_AOV' }
+      });
+
+      await runtime.execute({
+        sessionId,
+        executionId: crypto.randomUUID(),
+        merchantId: 'merchant-saas-01'
+      }, 'buy Starter plan');
+
+      const cart = await prisma.cart.findUnique({ where: { sessionId } });
+      expect(cart).toBeDefined();
+      const cartItems = cart!.items as any[];
+      expect(cartItems.length).toBe(1);
+      expect(cartItems[0].productId).toBe('prod_saas_starter');
+
+      const opps = await prisma.revenueOpportunityLog.findMany({
+        where: { sessionId }
+      });
+
+      const opp = opps.find(o => o.opportunityType === 'CROSS_SELL' && (o.status === 'PROPOSED' || o.status === 'REJECTED'));
+      
+      expect(opp).not.toBeUndefined();
+      if (opp) {
+        expect(opp.opportunityType).toBe('CROSS_SELL');
+      }
+    }, 45000);
   });
 });

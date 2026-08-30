@@ -7,6 +7,8 @@ import { SkillRegistry } from '../../src/agent/skills/skill-registry';
 import { MerchantCapabilityResolver } from '../../src/agent/intelligence/capability-resolver';
 import { AgentRuntime } from '../../src/agent/runtime/agent-runtime';
 import { SkillDefinitionError, SkillFileNotFoundError } from '../../src/agent/skills/errors';
+import { PrismaCatalogProvider } from '../../src/catalog/prisma-catalog.provider';
+import { prisma } from '../../src/database/prisma/prisma';
 
 describe.sequential('Phase 22: Dynamic Skill System', () => {
   const rootSkillsDir = path.resolve(__dirname, '../../skills');
@@ -25,7 +27,7 @@ describe.sequential('Phase 22: Dynamic Skill System', () => {
           return { has: (c: string) => ['catalog', 'inventory', 'pricing', 'order.create', 'payment.create', 'checkout.create', 'refund.create', 'upsell.create', 'cross_sell.create'].includes(c), getAll: () => [] };
         }
         if (merchantId === 'merchant-b2b') {
-          return { has: (c: string) => ['catalog', 'inventory', 'pricing', 'negotiation', 'quote.create', 'offer.create', 'negotiation.create', 'order.create', 'payment.create'].includes(c), getAll: () => [] };
+          return { has: (c: string) => ['catalog', 'inventory', 'pricing', 'negotiation', 'quote.create', 'offer.create', 'negotiation.create', 'order.create', 'payment.create', 'checkout.create'].includes(c), getAll: () => [] };
         }
         return { has: () => false, getAll: () => [] };
       }
@@ -190,5 +192,52 @@ name: incomplete
       toolId: 'capture_payment',
       input: { amount: 100 }
     }));
+  });
+
+  it('10. PrismaCatalogProvider search should accurately resolve multi-word, plural, and natural language queries', async () => {
+    const catalogProvider = new PrismaCatalogProvider(prisma);
+
+    // Clear namespace to avoid collisions from other tests
+    await prisma.inventory.deleteMany({ where: { merchantId: 'merchant-saas-01' } });
+    await prisma.product.deleteMany({ where: { merchantId: 'merchant-saas-01' } });
+
+    // Seed the explicit products this test expects to ensure it doesn't fail based on test execution order
+    await prisma.product.upsert({
+      where: { id: 'prod_saas_starter_skill' },
+      update: {},
+      create: { id: 'prod_saas_starter_skill', merchantId: 'merchant-saas-01', name: 'Starter Cloud Plan', priceMinor: 100000, currency: 'INR' }
+    });
+    await prisma.product.upsert({
+      where: { id: 'prod_saas_pro_skill' },
+      update: {},
+      create: { id: 'prod_saas_pro_skill', merchantId: 'merchant-saas-01', name: 'Enterprise Pro Cloud Plan', priceMinor: 500000, currency: 'INR' }
+    });
+
+    // Case 1: "cloud plans" -> Starter Cloud Plan & Enterprise Pro Cloud Plan
+    const saasResults = await catalogProvider.search('merchant-saas-01', 'cloud plans');
+    const saasNames = saasResults.map(p => p.name);
+    expect(saasNames).toContain('Starter Cloud Plan');
+    expect(saasNames).toContain('Enterprise Pro Cloud Plan');
+
+    // Case 2: "Pro plan" -> Enterprise Pro Cloud Plan
+    const proResults = await catalogProvider.search('merchant-saas-01', 'Pro plan');
+    expect(proResults.length).toBeGreaterThan(0);
+    expect(proResults[0].name).toBe('Enterprise Pro Cloud Plan');
+
+    // Case 3: "laptops" -> Developer Pro Laptop
+    const laptopResults = await catalogProvider.search('merchant-electronics-01', 'laptops');
+    expect(laptopResults.map(p => p.name)).toContain('Developer Pro Laptop');
+
+    // Case 4: "running shoes" -> Running Shoes
+    const shoeResults = await catalogProvider.search('demo-merchant-id', 'running shoes');
+    expect(shoeResults.map(p => p.name)).toContain('Running Shoes');
+
+    // Case 5: empty query -> []
+    const emptyResults = await catalogProvider.search('demo-merchant-id', '');
+    expect(emptyResults).toEqual([]);
+
+    // Case 6: Strict Merchant Isolation -> SaaS merchant should NEVER return electronics laptop
+    const isolatedResults = await catalogProvider.search('merchant-saas-01', 'laptop');
+    expect(isolatedResults).toEqual([]);
   });
 });

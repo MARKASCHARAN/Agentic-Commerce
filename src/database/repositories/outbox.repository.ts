@@ -58,12 +58,15 @@ export class OutboxRepository {
   async claimNext(limit: number): Promise<OutboxEventRecord[]> {
     const pending = await this.prisma.outboxEvent.findMany({
       where: {
-        status: 'PENDING',
+        OR: [
+          { status: 'PENDING' },
+          { status: 'PROCESSING', availableAt: { lte: new Date() } }
+        ],
         availableAt: { lte: new Date() },
       },
       orderBy: { createdAt: 'asc' },
       take: limit,
-      select: { id: true },
+      select: { id: true, status: true, attempts: true },
     });
 
     if (pending.length === 0) return [];
@@ -71,8 +74,16 @@ export class OutboxRepository {
     const claimed: OutboxEventRecord[] = [];
     for (const candidate of pending) {
       const result = await this.prisma.outboxEvent.updateMany({
-        where: { id: candidate.id, status: 'PENDING' },
-        data: { status: 'PROCESSING', attempts: { increment: 1 } },
+        where: { 
+          id: candidate.id,
+          status: candidate.status,
+          attempts: candidate.attempts
+        },
+        data: { 
+          status: 'PROCESSING', 
+          attempts: { increment: 1 },
+          availableAt: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes lease
+        },
       });
       if (result.count === 1) {
         const updated = await this.prisma.outboxEvent.findUnique({
@@ -117,7 +128,7 @@ export class OutboxRepository {
     const cutoff = new Date(Date.now() - staleMs);
     const result = await client.outboxEvent.updateMany({
       where: { status: 'PROCESSING', updatedAt: { lt: cutoff } },
-      data: { status: 'PENDING' },
+      data: { status: 'PENDING', availableAt: new Date() },
     });
     return result.count;
   }

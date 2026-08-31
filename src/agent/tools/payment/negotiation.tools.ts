@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 import { getOrCreateCart } from '../../cart/cart-state';
 import { NegotiationEngine } from '../../intelligence/negotiation/negotiation-engine';
 import { NegotiationPolicy } from '../../intelligence/negotiation/types';
+import { PolicyApprovalRequiredError } from '../../policy/errors';
 
 export const createNegotiationTool = (
   catalogProvider: CatalogProvider,
@@ -89,6 +90,10 @@ export const createNegotiationTool = (
         const items = (cart.items as any[] || []).slice();
         const existingItemIndex = items.findIndex(i => i.productId === input.productId);
         
+        if (result.requiresApproval && !context.existingApproval) {
+          throw new PolicyApprovalRequiredError('financial-policy', ['merchant'], `Negotiation discount exceeds autonomous limits: ${result.reason}`);
+        }
+
         const approvedPrice = result.approvedPriceMinor ?? product.priceMinor;
         
         if (existingItemIndex > -1) {

@@ -70,68 +70,20 @@ export const createCheckoutTool = (
           }
         }
 
-        // 3. Authoritative cart validation:
-        // Ensure every item is either in the cart already OR is a proposed opportunity we are accepting.
+        // 3. Strict Authoritative cart validation:
+        // Ensure every item is already in the authoritative cart.
         for (const item of itemsToProcess) {
           const cartItem = cartItems.find(i => i.productId === item.productId);
 
-          // Check if it's the complement product in one of the proposed opportunities
-          const oppToAccept = proposedOpps.find(opp => {
-            const resourceId = (opp as any).proposedAction?.resourceId || Array.from(complements).find(cid => !currentCartProductIds.includes(cid));
-            return resourceId === item.productId;
-          });
-
-          if (!cartItem && !oppToAccept) {
-            throw new Error(`Security Exception: Unauthorized item injection. Product "${item.productId}" is not in the authorized cart.`);
+          if (!cartItem) {
+            throw new Error(`Security Exception: Unauthorized item injection. Product "${item.productId}" is not in the authorized cart. You must use opportunity.accept first if this is a cross-sell/upsell.`);
           }
 
-          if (cartItem) {
-            // Validate requested quantity against DB cart quantity
-            if (item.quantity !== cartItem.quantity) {
-              throw new Error(`Security Exception: Requested quantity (${item.quantity}) does not match authoritative cart quantity (${cartItem.quantity}).`);
-            }
-          } else if (oppToAccept) {
-            // Validate requested quantity against opportunity default quantity (1)
-            const expectedQty = 1;
-            if (item.quantity !== expectedQty) {
-              throw new Error(`Security Exception: Requested quantity (${item.quantity}) for opportunity product "${item.productId}" does not match authorized opportunity quantity (${expectedQty}).`);
-            }
-
-            // If it is a proposed opportunity, accept it and add to cart state in the DB
-            const resourceId = (oppToAccept as any).proposedAction?.resourceId || item.productId;
-            await acceptOpportunity(prisma, context.sessionId, oppToAccept.id, resourceId);
-            // Push to local cartItems list since we updated the DB
-            cartItems.push({ productId: resourceId, quantity: expectedQty });
+          // Validate requested quantity against DB cart quantity
+          if (item.quantity !== cartItem.quantity) {
+            throw new Error(`Security Exception: Requested quantity (${item.quantity}) does not match authoritative cart quantity (${cartItem.quantity}).`);
           }
         }
-
-        // Handle any proposed opportunities that were NOT included in the checkout items (rejections)
-        for (const opp of proposedOpps) {
-          const resourceId = (opp as any).proposedAction?.resourceId || Array.from(complements).find(cid => !currentCartProductIds.includes(cid));
-          if (!resourceId) {
-            throw new Error('Security Exception: Opportunity does not contain an authoritative complement product ID.');
-          }
-          const isIncluded = itemsToProcess.some(item => item.productId === resourceId);
-          if (!isIncluded) {
-            await rejectOpportunity(prisma, context.sessionId, opp.id, resourceId);
-          }
-        }
-
-        // --- Explicit Consent Check ---
-        const cartProductIds: string[] = cartItems.map(i => i.productId);
-        const hasUnapprovedItems = itemsToProcess.some(item => !cartProductIds.includes(item.productId));
-
-        if (hasUnapprovedItems && context.conversation && context.conversation.messages) {
-          const messages = context.conversation.messages;
-          const lastUserMsg = messages.slice().reverse().find((m: any) => m.role === 'user');
-          if (lastUserMsg) {
-            const text = (lastUserMsg.content || '').toLowerCase().trim();
-            if (text === 'buy' || text === 'checkout' || text === 'purchase') {
-              throw new Error(`Security Exception: The buyer said "${text}". You attempted to silently add a cross-sell item not in their cart. You must ONLY checkout the items they explicitly agreed to or asked for. Please call checkout.create again with ONLY the items in their cart: ${cartProductIds.join(', ')}.`);
-            }
-          }
-        }
-        // ------------------------------
 
         // Calculate total amount deterministically from products/catalog
         let totalAmountMinor = 0;
@@ -214,11 +166,12 @@ export const createCheckoutTool = (
           throw new Error('Failed to create or retrieve CommerceOrder');
         }
 
-        // Call Provider to create Razorpay order (idempotency key ensures provider-side idempotency)
-        const providerOrder = await paymentProvider.createOrder({
+        // Call Provider to create Razorpay payment link (idempotency key ensures provider-side idempotency)
+        const providerLink = await paymentProvider.createPaymentLink({
           amount: totalAmountMinor,
           currency: currency,
-          receipt: order.id,
+          referenceId: order.id,
+          description: 'Agentic Commerce Order',
           notes: {
             sessionId: context.sessionId,
             merchantId: context.merchantId,
@@ -226,11 +179,12 @@ export const createCheckoutTool = (
           }
         }, context.idempotencyKey);
 
-        if (!providerOrder.success || !providerOrder.data) {
-          throw new Error('Failed to create Razorpay Order');
+        if (!providerLink.success || !providerLink.data) {
+          throw new Error('Failed to create Razorpay Payment Link');
         }
 
-        const razorpayOrderId = providerOrder.data.providerId;
+        const razorpayOrderId = providerLink.data.providerId; // Using link ID as the external ID
+        const paymentLinkUrl = providerLink.data.shortUrl;
 
         // Fetch or create the associated internal PaymentIntent
         let paymentIntent = await prisma.paymentIntent.findFirst({
@@ -290,6 +244,7 @@ export const createCheckoutTool = (
           checkoutData: {
             orderId: order.id,
             razorpayOrderId,
+            paymentLinkUrl,
             amountMinor: totalAmountMinor,
             currency: currency,
           }

@@ -9,6 +9,7 @@ import { MerchantGuardrailRepository } from '../../database/repositories/merchan
 import { RiskGate, RiskEvaluationError } from '../risk';
 import { MerchantCapabilityResolver } from '../intelligence/capability-resolver';
 import { MerchantCapability } from '../intelligence/types';
+import { ApprovalRepository } from '../../database/repositories/approval.repository';
 
 export interface ToolGatewayDependencies {
   toolRegistry: ToolRegistry;
@@ -22,6 +23,7 @@ export interface ToolGatewayDependencies {
   guardrailRepository?: MerchantGuardrailRepository;
   capabilityResolver?: MerchantCapabilityResolver;
   riskGate?: RiskGate;
+  approvalRepository?: ApprovalRepository;
 }
 
 export class ToolGateway {
@@ -146,6 +148,14 @@ export class ToolGateway {
         }
       }
 
+      let existingApproval = false;
+      if (this.deps.approvalRepository && context.idempotencyKey) {
+        const approval = await this.deps.approvalRepository.getByEntity('TOOL_EXECUTION', context.idempotencyKey);
+        if (approval && approval.status === 'APPROVED') {
+          existingApproval = true;
+        }
+      }
+
       // [FINANCIAL SAFETY]
       // Acts as an absolute firewall between probabilistic LLM intent and deterministic execution.
       // We validate cryptographic capabilities and merchant-defined constraints strictly before
@@ -153,7 +163,7 @@ export class ToolGateway {
       const policyDecision = await this.deps.policyEngine.evaluate(
         tool.policy.id,
         validatedInput,
-        { agentId, sessionId, executionId, merchantId: context.merchantId, guardrails }
+        { agentId, sessionId, executionId, merchantId: context.merchantId, guardrails, existingApproval }
       );
 
       this.deps.eventEmitter.emit('POLICY_CHECK_COMPLETED', {
@@ -192,7 +202,9 @@ export class ToolGateway {
 
         if (riskDecision.status === 'REVIEW') {
           // A Risk REVIEW forces an approval workflow
-          throw new PolicyApprovalRequiredError('risk-gate', ['risk-team'], riskDecision.reason || 'Risk requires manual review');
+          if (!existingApproval) {
+            throw new PolicyApprovalRequiredError('risk-gate', ['risk-team'], riskDecision.reason || 'Risk requires manual review');
+          }
         }
       }
 

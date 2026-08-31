@@ -19,6 +19,17 @@ export interface CreateOrderRequest {
   notes?: Record<string, string>;
 }
 
+export interface CreatePaymentLinkRequest {
+  amount: number;
+  currency: string;
+  description?: string;
+  customerName?: string;
+  customerEmail?: string;
+  customerContact?: string;
+  referenceId?: string;
+  notes?: Record<string, string>;
+}
+
 export interface RefundRequest {
   paymentId: string;
   amount?: number;

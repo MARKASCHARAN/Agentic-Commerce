@@ -111,6 +111,17 @@ export const createPaymentReconciliationHandler = (prisma: PrismaClient) => {
           }
         });
       }
+
+      // 5. Update Offer status if present
+      const offer = await prisma.offer.findFirst({
+        where: { orderId: internalOrderId }
+      });
+      if (offer) {
+        await prisma.offer.update({
+          where: { id: offer.id },
+          data: { status: 'PAID' }
+        });
+      }
     }
   };
 };

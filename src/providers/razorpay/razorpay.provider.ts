@@ -9,7 +9,8 @@ import {
   PaymentProviderError,
   PaymentUnknownError,
   PaymentProviderTimeoutError,
-  CreateOrderRequest
+  CreateOrderRequest,
+  CreatePaymentLinkRequest
 } from '../../agent/payments';
 import { WebhookEvent } from '../../agent/payments/webhook';
 import { RazorpayWebhookAdapter } from './razorpay.webhook';
@@ -91,6 +92,50 @@ export class RazorpayProvider implements PaymentProvider {
         },
         providerRawStatus: order.status,
         providerRawResponse: order
+      };
+    } catch (error) {
+      throw this.mapError(error);
+    }
+  }
+
+  async createPaymentLink(request: CreatePaymentLinkRequest, idempotencyKey?: string): Promise<ProviderResult<any>> {
+    try {
+      const params: any = {
+        amount: request.amount,
+        currency: request.currency,
+        accept_partial: false,
+        description: request.description || 'Order Payment',
+        notify: {
+          sms: false,
+          email: false
+        },
+        reminder_enable: false
+      };
+
+      if (request.referenceId) params.reference_id = request.referenceId;
+      if (request.customerName || request.customerEmail || request.customerContact) {
+        params.customer = {};
+        if (request.customerName) params.customer.name = request.customerName;
+        if (request.customerEmail) params.customer.email = request.customerEmail;
+        if (request.customerContact) params.customer.contact = request.customerContact;
+      }
+      
+      params.notes = { ...request.notes };
+      if (idempotencyKey) params.notes.idempotency_key = idempotencyKey;
+
+      const link = await this.razorpay.paymentLink.create(params);
+      
+      return {
+        success: true,
+        data: {
+          providerId: link.id,
+          shortUrl: link.short_url,
+          amount: link.amount,
+          currency: link.currency,
+          status: link.status
+        },
+        providerRawStatus: link.status,
+        providerRawResponse: link
       };
     } catch (error) {
       throw this.mapError(error);

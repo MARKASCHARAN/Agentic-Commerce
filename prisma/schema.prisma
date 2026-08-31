@@ -27,6 +27,7 @@ model Merchant {
   orders       CommerceOrder[]
   capabilities MerchantCapability[]
   guardrails   MerchantGuardrail?
+  strategy     MerchantStrategy?
   products     Product[]
   inventories  Inventory[]
   user         User                 @relation(fields: [userId], references: [id])
@@ -226,11 +227,34 @@ model WorkflowStep {
 
 model Approval {
   id          String   @id @default(uuid())
+  token       String   @unique @default(uuid())
   entity_type String
   entity_id   String
   status      String   @default("PENDING")
+  payload     Json?
+  expiresAt   DateTime
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model Offer {
+  id            String   @id @default(uuid())
+  merchantId    String
+  buyerId       String
+  sessionId     String
+  items         Json     // Array of { productId, quantity, unitPriceMinor }
+  subtotalMinor Int
+  discountMinor Int
+  shippingMinor Int
+  totalMinor    Int
+  currency      String   @default("INR")
+  status        String   @default("REQUESTED") // REQUESTED, OFFERED, COUNTERED, ACCEPTED, FINALIZED, PAYMENT_PENDING, REJECTED, EXPIRED, PAID
+  negotiationRounds Int  @default(0)
+  orderId       String?
+  paymentUrl    String?
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model Event {
@@ -374,18 +398,33 @@ model MerchantCapability {
 model MerchantGuardrail {
   id                          String   @id @default(uuid())
   merchantId                  String   @unique
+  businessType                String   @default("retail")
   revenueGoal                 String   @default("BALANCED")
   currency                    String   @default("USD")
   autonomousPaymentLimitMinor Int      @default(0)
   approvalAboveMinor          Int      @default(0)
   maxDiscountBps              Int      @default(0)
+  maxAutonomousDiscountBps    Int      @default(0)
+  maxApprovalDiscountBps      Int      @default(0)
   minimumMarginBps            Int      @default(0)
   negotiationEnabled          Boolean  @default(false)
+  maxNegotiationRounds        Int      @default(4)
   upsellEnabled               Boolean  @default(false)
   crossSellEnabled            Boolean  @default(false)
   disabledSkills              String[] @default([])
   createdAt                   DateTime @default(now())
   updatedAt                   DateTime @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+}
+
+model MerchantStrategy {
+  id         String   @id @default(uuid())
+  merchantId String   @unique
+  primary    String   @default("REVENUE")
+  secondary  String[] @default([])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   merchant Merchant @relation(fields: [merchantId], references: [id])
 }

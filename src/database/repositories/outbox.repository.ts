@@ -39,6 +39,7 @@ export class OutboxRepository {
         aggregateId: event.aggregateId,
         correlationId: event.correlationId,
         payload: event.payload,
+        availableAt: new Date(),
       },
     });
   }

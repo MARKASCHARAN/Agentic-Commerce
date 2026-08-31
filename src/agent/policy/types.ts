@@ -23,6 +23,7 @@ export interface PolicyDecision {
 
 export interface PolicyContext extends ExecutionIdentity {
   guardrails?: MerchantGuardrailConfig;
+  existingApproval?: boolean;
 }
 
 export interface Policy<Input = unknown> {

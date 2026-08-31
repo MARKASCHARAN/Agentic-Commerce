@@ -8,6 +8,8 @@ export const MerchantGuardrailConfigSchema = z.object({
   autonomousPaymentLimitMinor: z.number().int().nonnegative().default(0),
   approvalAboveMinor: z.number().int().nonnegative().default(0),
   maxDiscountBps: z.number().int().nonnegative().max(10000).default(0),
+  maxAutonomousDiscountBps: z.number().int().nonnegative().max(10000).default(0),
+  maxApprovalDiscountBps: z.number().int().nonnegative().max(10000).default(0),
   minimumMarginBps: z.number().int().nonnegative().max(10000).default(0),
   negotiationEnabled: z.boolean().default(false),
   upsellEnabled: z.boolean().default(false),

@@ -36,6 +36,10 @@ export class FinancialExecutionPolicy implements Policy<FinancialInput> {
   }
 
   evaluate(input: FinancialInput, context: PolicyContext): PolicyDecision {
+    if (context.existingApproval) {
+      return { result: 'ALLOW' };
+    }
+
     const effectiveCurrency = context.guardrails ? context.guardrails.currency : this.config.allowedCurrency;
     
     if (input.currency !== effectiveCurrency) {

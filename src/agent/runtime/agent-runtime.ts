@@ -226,22 +226,19 @@ export class AgentRuntime {
       }
 
       const merchantName = context.scopedData?.merchantName || context.identity?.merchantId || 'this merchant';
-      const systemPrompt = `You are a helpful AI commerce assistant for ${merchantName}.
-Your goal is to assist the buyer discover and purchase products from the available catalog.
-Always use the tools available. Do not invent products or prices.
+      const systemPrompt = `You are an AI commerce assistant for ${merchantName}.
 
-Rules:
-1. The AUTHORITATIVE CART is the absolute source of truth for what the buyer currently intends to purchase.
-2. Never invent cart items or calculate/modify/invent prices. The checkout tool determines the authoritative amount.
-3. Never add a product merely because an opportunity exists. A proposed cross-sell (ACTIVE OPPORTUNITY) requires explicit buyer acceptance.
-4. A rejected opportunity (REJECTED OPPORTUNITIES) must never be proposed or added again.
-5. When the buyer says "buy", "checkout", "purchase", or "pay":
-   a. If items are in the AUTHORITATIVE CART, invoke checkout.create with no items (it uses the cart).
-   b. If the AUTHORITATIVE CART is empty, identify the specific product from the recent conversation/search history and call checkout.create({ productId: "<productId>", quantity: 1 }).
-   c. If multiple products were shown and it is ambiguous which one the buyer wants, ask the buyer to specify which product before calling checkout.create.
-6. Do not call catalog.search merely to rediscover products already present in the conversation history or AUTHORITATIVE CART.
-7. All financial actions MUST go through ToolGateway. Never bypass PolicyEngine, RiskGate, or IdempotencyEngine.
-8. Do never infer a revenue opportunity from your own reasoning when the runtime has already provided the authoritative ACTIVE OPPORTUNITY state in Metadata.`;
+Help the buyer discover and purchase products using available tools.
+
+Never invent products, prices, inventory, orders, or payment results.
+
+Use the AUTHORITATIVE CART as the source of truth for what the buyer intends to purchase.
+
+Respect explicit buyer consent.
+
+Use available skills for domain-specific workflows.
+
+Use tools for actions rather than claiming actions succeeded.`;
 
       const cartItems = context.scopedData?.cartItems || [];
       const rejectedOpportunities = context.scopedData?.rejectedOpportunities || [];
@@ -360,6 +357,38 @@ Available Skills: ${JSON.stringify(skillsMetadata)}`;
               console.error(`[BOUNDARY ERROR] Tool ${toolName} failed:`, toolError);
               toolExecutionFailed = true;
               toolFailureMessage = toolError.message || String(toolError);
+              
+              if (toolError.name === 'PolicyApprovalRequiredError') {
+                if (this.deps.approvalEngine) {
+                  const idempotencyKey = `${identity.executionId}_${tc.toolCallId}`;
+                  
+                  let cartStateHash: string | undefined = undefined;
+                  if (toolName === 'checkout.create' && this.deps.prisma) {
+                    const cart = await this.deps.prisma.cart.findUnique({ where: { sessionId: identity.sessionId } });
+                    cartStateHash = Buffer.from(JSON.stringify(cart?.items || [])).toString('base64');
+                  }
+
+                  const payload = {
+                    toolName,
+                    input: tc.input,
+                    cartStateHash,
+                    context: {
+                      executionId: identity.executionId,
+                      sessionId: identity.sessionId,
+                      merchantId: identity.merchantId,
+                      agentId: identity.agentId,
+                      idempotencyKey
+                    }
+                  };
+                  try {
+                    await this.deps.approvalEngine.requireApproval(identity.merchantId || 'system', 'TOOL_EXECUTION', idempotencyKey, payload);
+                    toolFailureMessage = 'System: Execution paused. Human approval has been requested for this action. Please inform the user that you are waiting for approval.';
+                  } catch (e) {
+                    console.error("Failed to create approval record:", e);
+                  }
+                }
+              }
+
               toolResultMsg.content.push({
                 type: 'tool-result',
                 toolCallId: tc.toolCallId,

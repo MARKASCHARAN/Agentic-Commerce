@@ -146,4 +146,5 @@ export interface AgentRuntimeDependencies {
   negotiationEngine?: NegotiationEngine;
   guardrailRepository?: MerchantGuardrailRepository;
   prisma?: PrismaClient;
+  approvalEngine?: import('../approval/approval-engine').ApprovalEngine;
 }

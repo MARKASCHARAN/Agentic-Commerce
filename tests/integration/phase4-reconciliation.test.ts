@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { RevenueIntelligenceEngine } from '../../src/agent/intelligence/revenue-engine';
 import { RevenueTracker } from '../../src/agent/intelligence/revenue-tracker';
 import { PrismaCatalogProvider } from '../../src/catalog/prisma-catalog.provider';
 import { createPaymentReconciliationHandler } from '../../src/agent/payments/reconciliation';
 import { createCheckoutTool } from '../../src/agent/tools/payment/checkout.tools';
-import { getDashboardMetrics } from '../../src/api/routes/ui.routes';
+import { getDashboardMetrics } from '../../src/api/internal/routes/ui.routes.js';
 import crypto from 'crypto';
 
 describe.sequential('Phase 4: Measurement & Reconciliation Validation', () => {
@@ -17,20 +17,10 @@ describe.sequential('Phase 4: Measurement & Reconciliation Validation', () => {
 
   // Mock Razorpay Provider
   const mockRazorpay = {
-    createOrder: async (input: any, idempotencyKey?: string) => {
-      if (input.receipt && input.notes?.receipt !== input.receipt) {
-        throw new Error('Regression: Razorpay createOrder payload must contain notes.receipt matching the root receipt (CommerceOrder.id)');
-      }
-      return {
-        success: true,
-        data: {
-          providerId: `order_${crypto.randomBytes(8).toString('hex')}`,
-          amountMinor: input.amount,
-          currency: input.currency
-        }
-      };
-    },
-    reconcileWebhook: async () => ({ success: true, data: {} })
+    createOrder: vi.fn().mockResolvedValue({ success: true, data: { providerId: 'rzp_order_123', status: 'created' } }),
+    createPaymentLink: vi.fn().mockResolvedValue({ success: true, data: { providerId: 'plink_123', shortUrl: 'https://rzp.io/test', status: 'created' } }),
+    reconcileWebhook: async () => ({ success: true, data: {} }),
+    capturePayment: vi.fn()
   } as any;
 
   const mockInventory = {

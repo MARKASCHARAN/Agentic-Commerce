@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
-import { RevenueIntelligenceEngine } from '../../src/agent/intelligence/revenue-engine';
+import { RevenueIntelligenceEngine } from '../../src/agent/intelligence/revenue-engine.js';
 import crypto from 'crypto';
 
 describe('Revenue Context Hydration and Detector Activation Tests', () => {

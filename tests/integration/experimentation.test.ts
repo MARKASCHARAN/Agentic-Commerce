@@ -5,7 +5,7 @@ import { MerchantCapabilityRepository } from '../../src/database/repositories/me
 import { MerchantCapabilityResolver } from '../../src/agent/intelligence/capability-resolver';
 import { getSessionExperimentGroup } from '../../src/agent/intelligence/experiment';
 import { getOrCreateCart } from '../../src/agent/cart/cart-state';
-import uiRouter from '../../src/api/routes/ui.routes';
+import uiRouter from '../../src/api/internal/routes/ui.routes.js';
 
 describe('Phase 36: Revenue Attribution + Experimentation', () => {
   let prisma: PrismaClient;

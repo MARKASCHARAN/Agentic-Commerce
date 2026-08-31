@@ -121,7 +121,7 @@ describe('Phase 37: Merchant Revenue Strategy', () => {
   it('1. MerchantStrategyResolver parses priority and margin tags from product descriptions', async () => {
     const strategy = await strategyResolver.resolve(merchantId);
 
-    expect(strategy.revenueGoal).toBe('BALANCED');
+    expect(strategy.primaryGoal).toBe('BALANCED');
     expect(strategy.maxDiscountBps).toBe(500);
     expect(strategy.minimumMarginBps).toBe(1000);
     expect(strategy.approvalAboveMinor).toBe(100000);

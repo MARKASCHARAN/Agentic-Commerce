@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
-import uiRouter from '../../src/api/routes/ui.routes';
+import uiRouter from '../../src/api/internal/routes/ui.routes.js';
 
 describe('Phase 40 & Phase 41: Dashboard Rates & Human Approval UX', () => {
   let prisma: PrismaClient;

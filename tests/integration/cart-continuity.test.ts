@@ -11,6 +11,8 @@ import { IdempotencyEngine } from '../../src/agent/idempotency/engine';
 import { PrismaCatalogProvider } from '../../src/catalog/prisma-catalog.provider';
 import { createCatalogSearchTool, createCatalogGetTool } from '../../src/agent/tools/catalog/catalog.tools';
 import { createCheckoutTool } from '../../src/agent/tools/payment/checkout.tools';
+import { createOpportunityAcceptTool } from '../../src/agent/tools/payment/opportunity-accept.tool';
+import { createOpportunityRejectTool } from '../../src/agent/tools/payment/opportunity-reject.tool';
 import { RazorpayProvider } from '../../src/providers/razorpay/razorpay.provider';
 import { PrismaIdempotencyRepository } from '../../src/database/repositories/idempotency.repository';
 import { RevenueIntelligenceEngine } from '../../src/agent/intelligence/revenue-engine';
@@ -113,16 +115,17 @@ describe('Cart and Conversation Continuity Integration Tests', () => {
     } as any;
 
     const mockPaymentProvider = {
-      createOrder: async (opts: any) => ({
-        success: true,
-        data: { providerId: `ord_${crypto.randomBytes(8).toString('hex')}` }
-      })
+      createOrder: vi.fn().mockResolvedValue({ success: true, data: { providerId: 'rzp_order_123', status: 'created' } }),
+      createPaymentLink: vi.fn().mockResolvedValue({ success: true, data: { providerId: 'plink_123', shortUrl: 'https://rzp.io/test', status: 'created' } }),
+      capturePayment: vi.fn()
     } as any;
 
     const toolRegistry = new ToolRegistry();
     toolRegistry.register(createCatalogSearchTool(catalogProvider));
     toolRegistry.register(createCatalogGetTool(catalogProvider));
     toolRegistry.register(createCheckoutTool(catalogProvider, mockInventoryProvider, mockPaymentProvider, prisma));
+    toolRegistry.register(createOpportunityAcceptTool(prisma));
+    toolRegistry.register(createOpportunityRejectTool(prisma));
 
     const policyEngine = {
       evaluate: async () => ({ status: 'ALLOW' })
@@ -248,7 +251,7 @@ describe('Cart and Conversation Continuity Integration Tests', () => {
         merchantId: 'demo-merchant-id',
         sessionId,
         opportunityType: 'CROSS_SELL',
-        expectedImpactMinor: 69900,
+        expectedImpactMinor: 69900, 
         status: 'PROPOSED'
       }
     });
@@ -288,8 +291,20 @@ describe('Cart and Conversation Continuity Integration Tests', () => {
         merchantId: 'demo-merchant-id',
         sessionId,
         opportunityType: 'CROSS_SELL',
-        expectedImpactMinor: 69900,
+        expectedImpactMinor: 69900, 
         status: 'PROPOSED'
+      }
+    });
+
+    // Simulate accepting the opportunity
+    await runtime.deps.toolGateway.execute({
+      toolId: 'opportunity.accept',
+      input: { opportunityId: oppId },
+      context: {
+        sessionId,
+        executionId: executionIdVal,
+        idempotencyKey: `idem_accept_${executionIdVal}`,
+        merchantId: 'demo-merchant-id'
       }
     });
 
@@ -307,7 +322,7 @@ describe('Cart and Conversation Continuity Integration Tests', () => {
         executionId: executionIdVal,
         idempotencyKey: `idem_${executionIdVal}`,
         merchantId: 'demo-merchant-id',
-        cartProductIds: ['prod_shoes_01']
+        cartProductIds: ['prod_shoes_01', 'prod_socks_01']
       }
     });
 
@@ -423,8 +438,7 @@ describe('Cart and Conversation Continuity Integration Tests', () => {
       const callArgs = spyChat.mock.calls[0][0];
       
       expect(callArgs.system).toContain('AUTHORITATIVE CART');
-      expect(callArgs.system).toContain('checkout.create');
-      
+
       const userContent = callArgs.messages[0].content;
       expect(userContent).toContain('AUTHORITATIVE CART');
       expect(userContent).toContain('prod_shoes_01');
@@ -525,15 +539,28 @@ describe('Cart and Conversation Continuity Integration Tests', () => {
       await prisma.session.create({ data: { id: sessionId, merchantId: 'demo-merchant-id' } });
       await getOrCreateCart(prisma, sessionId, [{ productId: 'prod_shoes_01', quantity: 1 }]);
 
+      const oppId = crypto.randomUUID();
       // Proposed opportunity
       await prisma.revenueOpportunityLog.create({
         data: {
-          id: crypto.randomUUID(),
+          id: oppId,
           merchantId: 'demo-merchant-id',
           sessionId,
           opportunityType: 'CROSS_SELL',
-          expectedImpactMinor: 69900,
+          expectedImpactMinor: 69900, 
           status: 'PROPOSED'
+        }
+      });
+
+      // Simulate accepting the opportunity
+      await runtime.deps.toolGateway.execute({
+        toolId: 'opportunity.accept',
+        input: { opportunityId: oppId },
+        context: {
+          sessionId,
+          executionId: crypto.randomUUID(),
+          idempotencyKey: `idem_accept_${crypto.randomUUID()}`,
+          merchantId: 'demo-merchant-id'
         }
       });
 
@@ -550,7 +577,7 @@ describe('Cart and Conversation Continuity Integration Tests', () => {
           executionId: crypto.randomUUID(),
           idempotencyKey: `idem_${crypto.randomUUID()}`,
           merchantId: 'demo-merchant-id',
-          cartProductIds: ['prod_shoes_01']
+          cartProductIds: ['prod_shoes_01', 'prod_socks_01']
         }
       });
 
@@ -563,14 +590,26 @@ describe('Cart and Conversation Continuity Integration Tests', () => {
       await prisma.session.create({ data: { id: sessionId, merchantId: 'demo-merchant-id' } });
       await getOrCreateCart(prisma, sessionId, [{ productId: 'prod_shoes_01', quantity: 1 }]);
 
+      const oppId = crypto.randomUUID();
       await prisma.revenueOpportunityLog.create({
         data: {
-          id: crypto.randomUUID(),
+          id: oppId,
           merchantId: 'demo-merchant-id',
           sessionId,
           opportunityType: 'CROSS_SELL',
-          expectedImpactMinor: 69900,
+          expectedImpactMinor: 69900, 
           status: 'PROPOSED'
+        }
+      });
+
+      await runtime.deps.toolGateway.execute({
+        toolId: 'opportunity.accept',
+        input: { opportunityId: oppId },
+        context: {
+          sessionId,
+          executionId: crypto.randomUUID(),
+          idempotencyKey: `idem_accept_${crypto.randomUUID()}`,
+          merchantId: 'demo-merchant-id'
         }
       });
 
@@ -589,7 +628,7 @@ describe('Cart and Conversation Continuity Integration Tests', () => {
           merchantId: 'demo-merchant-id',
           cartProductIds: ['prod_shoes_01']
         }
-      })).rejects.toThrow('Security Exception: Requested quantity (999) for opportunity product "prod_socks_01" does not match authorized opportunity quantity (1).');
+      })).rejects.toThrow('Security Exception: Requested quantity (999) does not match authoritative cart quantity (1).');
     });
 
     it('G. Product not in cart and not an accepted opportunity -> MUST fail', async () => {

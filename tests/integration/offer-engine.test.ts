@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { createNegotiationTool } from '../../src/agent/tools/payment/negotiation.tools';
 import { createCheckoutTool } from '../../src/agent/tools/payment/checkout.tools';
@@ -91,10 +91,12 @@ describe('Phase 32: Bounded Offer Engine', () => {
     toolRegistry = new ToolRegistry();
     toolRegistry.register(createNegotiationTool(catalogProvider, guardrailRepo, prisma));
 
-    const mockRazorpay = {
-      createOrder: async () => ({ success: true, data: { providerId: 'ord_123' } })
-    } as any;
-    toolRegistry.register(createCheckoutTool(catalogProvider, catalogProvider, mockRazorpay, prisma));
+    const mockPaymentProvider = {
+      createOrder: vi.fn().mockResolvedValue({ success: true, data: { providerId: 'rzp_order_123', status: 'created' } }),
+      createPaymentLink: vi.fn().mockResolvedValue({ success: true, data: { providerId: 'plink_123', shortUrl: 'https://rzp.io/test', status: 'created' } }),
+      capturePayment: vi.fn()
+    };
+    toolRegistry.register(createCheckoutTool(catalogProvider, catalogProvider, mockPaymentProvider, prisma));
 
     toolGateway = new ToolGateway({
       toolRegistry,

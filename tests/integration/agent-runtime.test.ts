@@ -258,6 +258,59 @@ describe('AgentRuntime Execution Loop', () => {
       const chatCall = (mockDeps.modelGateway.chat as any).mock.calls[0][0];
       expect(JSON.stringify(chatCall.messages)).toContain('prod_shoes_01');
     });
+
+    it('should filter out skills that lack required capabilities', async () => {
+      const testIdentity = { ...mockIdentity, merchantId: 'merchant-test' };
+      // Mock capability resolver to return only 'catalog'
+      mockDeps.capabilityResolver = {
+        resolve: vi.fn().mockResolvedValue(new Set(['catalog']))
+      } as any;
+
+      const catalogSkill = createEchoSkill();
+      (catalogSkill as any).metadata = { id: 'test.catalog' as SkillId, name: 'Catalog', description: 'desc', version: '1.0', requiredCapabilities: ['catalog'] };
+
+      const checkoutSkill = createEchoSkill();
+      (checkoutSkill as any).metadata = { id: 'test.checkout' as SkillId, name: 'Checkout', description: 'desc', version: '1.0', requiredCapabilities: ['checkout.create'] };
+
+      mockDeps.skillRegistry!.register(catalogSkill);
+      mockDeps.skillRegistry!.register(checkoutSkill);
+
+      await runtime.execute(testIdentity, 'hello');
+      
+      const chatCall = (mockDeps.modelGateway.chat as any).mock.calls.find((c: any) => c[0].messages);
+      const userMessage = chatCall[0].messages[0].content;
+      
+      expect(userMessage).toContain('Catalog');
+      expect(userMessage).not.toContain('Checkout');
+    });
+
+    it('should filter out skills explicitly disabled by guardrails', async () => {
+      const testIdentity = { ...mockIdentity, merchantId: 'merchant-test' };
+      mockDeps.guardrailRepository = {
+        getGuardrails: vi.fn().mockResolvedValue({ disabledSkills: ['test.catalog'] })
+      } as any;
+      
+      mockDeps.capabilityResolver = {
+        resolve: vi.fn().mockResolvedValue(new Set(['catalog', 'checkout.create']))
+      } as any;
+
+      const catalogSkill = createEchoSkill();
+      (catalogSkill as any).metadata = { id: 'test.catalog' as SkillId, name: 'Catalog', description: 'desc', version: '1.0', requiredCapabilities: ['catalog'] };
+
+      const checkoutSkill = createEchoSkill();
+      (checkoutSkill as any).metadata = { id: 'test.checkout' as SkillId, name: 'Checkout', description: 'desc', version: '1.0', requiredCapabilities: ['checkout.create'] };
+
+      mockDeps.skillRegistry!.register(catalogSkill);
+      mockDeps.skillRegistry!.register(checkoutSkill);
+
+      await runtime.execute(testIdentity, 'hello');
+      
+      const chatCall = (mockDeps.modelGateway.chat as any).mock.calls.find((c: any) => c[0].messages);
+      const userMessage = chatCall[0].messages[0].content;
+      
+      expect(userMessage).not.toContain('Catalog');
+      expect(userMessage).toContain('Checkout');
+    });
   });
 });
 

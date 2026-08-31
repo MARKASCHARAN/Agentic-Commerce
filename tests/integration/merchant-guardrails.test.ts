@@ -47,6 +47,8 @@ describe.sequential('Phase 25: Merchant Onboarding + Guardrails', () => {
       autonomousPaymentLimitMinor: 2500000,
       approvalAboveMinor: 2500000,
       maxDiscountBps: 1000,
+      maxAutonomousDiscountBps: 500, // 5%
+      maxApprovalDiscountBps: 2000,  // 20%
       minimumMarginBps: 2000,
       negotiationEnabled: true,
       upsellEnabled: true,
@@ -61,6 +63,8 @@ describe.sequential('Phase 25: Merchant Onboarding + Guardrails', () => {
       autonomousPaymentLimitMinor: 500000,
       approvalAboveMinor: 500000,
       maxDiscountBps: 500,
+      maxAutonomousDiscountBps: 500,
+      maxApprovalDiscountBps: 500,
       minimumMarginBps: 3000,
       negotiationEnabled: false,
       upsellEnabled: false,
@@ -101,7 +105,7 @@ describe.sequential('Phase 25: Merchant Onboarding + Guardrails', () => {
 
   it('4. Missing guardrail configuration returns null (fails closed)', async () => {
     // Create a merchant with no guardrail
-    const user = await prisma.user.create({ data: { email: 'noguardrail@test.com' } });
+    const user = await prisma.user.create({ data: { email: `noguardrail_${Date.now()}@test.com` } });
     const merchant = await prisma.merchant.create({ data: { userId: user.id, name: 'No Guardrail Merchant' } });
 
     const config = await guardrailRepo.getGuardrails(merchant.id);
@@ -188,8 +192,34 @@ describe.sequential('Phase 25: Merchant Onboarding + Guardrails', () => {
       guardrails!
     );
 
-    expect(result.allowed).toBe(false);
-    expect(result.reason).toMatch(/discount|floor/i);
+    // 15% discount (1500 bps) is > 5% autonomous but < 20% approval limit.
+    // So it should be allowed but require approval!
+    expect(result.allowed).toBe(true);
+    expect(result.requiresApproval).toBe(true);
+  });
+
+  it('8b. Discount within maxApprovalDiscountBps but exceeding maxAutonomousDiscountBps returns requiresApproval=true', async () => {
+    const guardrails = await guardrailRepo.getGuardrails(merchantAId);
+    expect(guardrails).not.toBeNull();
+
+    const engine = new NegotiationEngine();
+
+    // Guardrail has autonomous limit 5%, approval limit 20%
+    const result = engine.evaluate(
+      {
+        resourceId: 'prod-1',
+        quantity: 1,
+        originalPriceMinor: 100000,
+        proposedPriceMinor: 90000, // 10% discount — exceeds 5% autonomous, within 20% approval
+        currency: 'INR',
+        costMinor: 60000,
+      },
+      { enabled: true, negotiable: true, maxDiscountBps: 3000 },
+      guardrails!
+    );
+
+    expect(result.allowed).toBe(true);
+    expect(result.requiresApproval).toBe(true);
   });
 
   it('9. Minimum margin enforced from guardrails even if policy is less strict', async () => {

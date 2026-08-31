@@ -22,7 +22,10 @@ Use when the buyer is ready to purchase and needs an order created.
 ## Rules
 - Never bypass merchant policy.
 - Never directly execute payment without ToolGateway.
-- When the buyer says "buy", "checkout", or "purchase" for a product recently searched or displayed in the conversation, use that product's productId and call checkout.create with quantity 1.
+- `checkout.create` consumes the AUTHORITATIVE CART.
+- Do not use `checkout.create` to obtain buyer consent for cross-sells or upsells.
+- Do not directly inject PROPOSED opportunity products into `checkout.create`.
+- A revenue opportunity must already be ACCEPTED (via `opportunity.accept`) before its product can participate in checkout.
 
 ## Expected output
 An order reference ready for payment.

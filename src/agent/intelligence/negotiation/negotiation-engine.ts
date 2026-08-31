@@ -17,12 +17,16 @@ export class NegotiationEngine {
     
     // Policy-defined max discount. 0 means "no explicit policy limit".
     let maxAllowedDiscountBps = policy.maxDiscountBps || 0;
-    if (guardrails && guardrails.maxDiscountBps > 0) {
-      // Guardrails form a hard ceiling. If policy has no explicit limit (0),
-      // use the guardrail limit. Otherwise take the stricter (lower) of the two.
-      maxAllowedDiscountBps = maxAllowedDiscountBps === 0
-        ? guardrails.maxDiscountBps
-        : Math.min(maxAllowedDiscountBps, guardrails.maxDiscountBps);
+    let autonomousDiscountBps = maxAllowedDiscountBps;
+    
+    if (guardrails) {
+      // Determine the autonomous limit
+      const gAutonomous = guardrails.maxAutonomousDiscountBps > 0 ? guardrails.maxAutonomousDiscountBps : guardrails.maxDiscountBps;
+      autonomousDiscountBps = autonomousDiscountBps === 0 ? gAutonomous : Math.min(autonomousDiscountBps, gAutonomous);
+      
+      // Determine the absolute approval limit
+      const gApproval = guardrails.maxApprovalDiscountBps > 0 ? guardrails.maxApprovalDiscountBps : gAutonomous;
+      maxAllowedDiscountBps = maxAllowedDiscountBps === 0 ? gApproval : Math.min(maxAllowedDiscountBps, gApproval);
     }
 
     let appliedRule = "maximum discount";
@@ -40,8 +44,12 @@ export class NegotiationEngine {
     }
 
     // 1. Discount floor: We round down the allowable discount, effectively making the floor higher (safer).
+    // 1. Discount floor: We round down the allowable discount, effectively making the floor higher (safer).
     const discountAllowedMinor = Math.floor((proposal.originalPriceMinor * maxAllowedDiscountBps) / 10000);
     const discountFloor = proposal.originalPriceMinor - discountAllowedMinor;
+    
+    const autonomousDiscountAllowedMinor = Math.floor((proposal.originalPriceMinor * autonomousDiscountBps) / 10000);
+    const autonomousFloor = proposal.originalPriceMinor - autonomousDiscountAllowedMinor;
 
     // 2. Margin floor: We round up the required margin, effectively making the floor higher (safer).
     let marginFloor = 0;
@@ -87,10 +95,16 @@ export class NegotiationEngine {
         };
       }
 
+      let requiresApproval = false;
+      if (proposal.proposedPriceMinor < autonomousFloor) {
+        requiresApproval = true;
+      }
+
       return {
         allowed: true,
+        requiresApproval,
         approvedPriceMinor: proposal.proposedPriceMinor,
-        reason: "Proposal satisfies all pricing floors",
+        reason: requiresApproval ? "Proposal requires merchant approval for deep discount" : "Proposal satisfies all pricing floors",
         appliedRule,
         savingsMinor: proposal.originalPriceMinor - proposal.proposedPriceMinor,
         marginMinor: calculateMargin(proposal.proposedPriceMinor),

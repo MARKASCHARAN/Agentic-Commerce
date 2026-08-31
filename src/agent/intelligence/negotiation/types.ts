@@ -25,6 +25,7 @@ export type NegotiationProposal = z.infer<typeof NegotiationProposalSchema>;
 
 export const NegotiationResultSchema = z.object({
   allowed: z.boolean(),
+  requiresApproval: z.boolean().optional(),
   approvedPriceMinor: z.number().int().nonnegative().optional(),
   reason: z.string(),
   appliedRule: z.string().optional(),

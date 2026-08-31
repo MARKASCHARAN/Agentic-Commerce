@@ -1,7 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 
 export interface MerchantStrategy {
-  revenueGoal: string;
+  primaryGoal: string;
+  secondaryGoals: string[];
   maxDiscountBps: number;
   minimumMarginBps: number;
   approvalAboveMinor: number;
@@ -15,6 +16,10 @@ export class MerchantStrategyResolver {
   async resolve(merchantId: string): Promise<MerchantStrategy> {
     try {
       const guardrail = await this.prisma.merchantGuardrail.findUnique({
+        where: { merchantId }
+      });
+
+      const dbStrategy = await this.prisma.merchantStrategy.findUnique({
         where: { merchantId }
       });
 
@@ -37,7 +42,8 @@ export class MerchantStrategyResolver {
       }
 
       return {
-        revenueGoal: guardrail?.revenueGoal || 'BALANCED',
+        primaryGoal: dbStrategy?.primary || guardrail?.revenueGoal || 'REVENUE',
+        secondaryGoals: dbStrategy?.secondary || [],
         maxDiscountBps: guardrail?.maxDiscountBps || 0,
         minimumMarginBps: guardrail?.minimumMarginBps || 0,
         approvalAboveMinor: guardrail?.approvalAboveMinor || 0,
@@ -46,7 +52,8 @@ export class MerchantStrategyResolver {
       };
     } catch {
       return {
-        revenueGoal: 'BALANCED',
+        primaryGoal: 'REVENUE',
+        secondaryGoals: [],
         maxDiscountBps: 0,
         minimumMarginBps: 0,
         approvalAboveMinor: 0,

@@ -199,7 +199,7 @@ export class RevenueIntelligenceEngine {
       }
     }
 
-    const goal = strategy?.revenueGoal || guardrails?.revenueGoal || 'BALANCED';
+    const goal = strategy?.primaryGoal || guardrails?.revenueGoal || 'BALANCED';
 
     if (goal === 'INCREASE_CONVERSION') {
       opportunities.sort((a, b) => b.confidence - a.confidence);

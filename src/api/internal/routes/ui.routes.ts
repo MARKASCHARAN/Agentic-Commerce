@@ -32,6 +32,7 @@ import { BackgroundCommerceScanner } from '../../../agent/scheduler/background-s
 import { ApprovalEngine } from '../../../agent/approval/approval-engine.js';
 import { EmailNotifier } from '../../../agent/approval/notification/email-notifier.js';
 import { WhatsAppNotifier } from '../../../agent/approval/notification/whatsapp-notifier.js';
+import { DecisionLogger } from '../../../agent/audit/decision-logger.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -87,9 +88,11 @@ const revenueEngine = new RevenueIntelligenceEngine(
 );
 
 const modelGateway = new ModelGateway();
+const decisionLogger = new DecisionLogger(prisma);
 
 export const agentRuntime = new AgentRuntime({
   modelGateway: modelGateway,
+  decisionLogger: decisionLogger,
   approvalEngine: approvalEngine,
   prisma: prisma,
   stateManager: {
@@ -209,8 +212,7 @@ export const agentRuntime = new AgentRuntime({
   revenueTracker,
   revenueEngine,
   capabilityResolver,
-  guardrailRepository,
-  prisma
+  guardrailRepository
 });
 
 router.post('/chat', async (req: Request, res: Response) => {
@@ -542,7 +544,7 @@ router.post('/approvals/:token/approve', async (req: Request, res: Response) => 
   try {
     const { token } = req.params;
 
-    const approval = await approvalRepository.getByToken(token);
+    const approval = await approvalRepository.getByToken(token as string);
     if (!approval) {
       res.status(404).json({ error: 'Invalid or expired approval token' });
       return;
@@ -566,7 +568,7 @@ router.post('/approvals/:token/approve', async (req: Request, res: Response) => 
       const currentCart = await prisma.cart.findUnique({ where: { sessionId: payload.context.sessionId } });
       const currentHash = Buffer.from(JSON.stringify(currentCart?.items || [])).toString('base64');
       if (currentHash !== payload.cartStateHash) {
-        await approvalRepository.updateStatus(approval.id, 'PENDING');
+        await approvalRepository.updateStatus(approval.id, 'REJECTED');
         res.status(409).json({ error: 'State Mismatch: The buyer cart has changed since this approval was generated.' });
         return;
       }
@@ -580,7 +582,7 @@ router.post('/approvals/:token/approve', async (req: Request, res: Response) => 
           context: { ...payload.context, idempotencyKey: payload.context.idempotencyKey + '_approved' },
         });
 
-        const paymentLinkUrl = result.output?.checkoutData?.paymentLinkUrl;
+        const paymentLinkUrl = (result.output as any)?.checkoutData?.paymentLinkUrl;
         const msgText = paymentLinkUrl 
           ? `Merchant has approved the transaction. Here is your secure payment link: ${paymentLinkUrl}` 
           : `Merchant has approved the transaction. Checkout successful!`;
@@ -602,8 +604,8 @@ router.post('/approvals/:token/approve', async (req: Request, res: Response) => 
           const { ResendNotifier } = await import('../../../agent/approval/notification/resend-notifier.js');
           const resendNotifier = new ResendNotifier();
           const buyerEmail = 'demo-buyer@example.com'; 
-          if (paymentLinkUrl && result.output?.checkoutData) {
-             await resendNotifier.sendPaymentLink(buyerEmail, result.output.checkoutData, paymentLinkUrl);
+          if (paymentLinkUrl && (result.output as any)?.checkoutData) {
+             await resendNotifier.sendPaymentLink(buyerEmail, (result.output as any).checkoutData, paymentLinkUrl);
           }
         } catch(e) {
           console.error('Failed to send buyer email', e);
@@ -625,7 +627,7 @@ router.post('/approvals/:token/reject', async (req: Request, res: Response) => {
   try {
     const { token } = req.params;
 
-    const approval = await approvalRepository.getByToken(token);
+    const approval = await approvalRepository.getByToken(token as string);
     if (!approval) {
       res.status(404).json({ error: 'Invalid or expired approval token' });
       return;
@@ -704,6 +706,28 @@ router.post('/genui', async (req: Request, res: Response) => {
     }
 
     res.json({ card });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/merchant/:merchantId/audit/:sessionId', async (req: Request, res: Response) => {
+  try {
+    const { merchantId, sessionId } = req.params;
+    
+    // In a real app, we'd verify merchant authentication here.
+    // For the demo, we just fetch the logs.
+    const logs = await prisma.agentDecisionLog.findMany({
+      where: {
+        merchantId: merchantId as string,
+        sessionId: sessionId as string
+      },
+      orderBy: {
+        timestamp: 'asc'
+      }
+    });
+
+    res.json(logs);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

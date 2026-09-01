@@ -64,6 +64,16 @@ export class AgentRuntime {
 
       this.deps.eventEmitter.emit('EXECUTION_STARTED', { identity, task, execution });
 
+      if (identity.merchantId && this.deps.decisionLogger) {
+        await this.deps.decisionLogger.log({
+          sessionId: identity.sessionId,
+          merchantId: identity.merchantId,
+          action: 'BUYER_REQUEST',
+          reasoning: `Buyer initiated request: "${task.substring(0, 50)}..."`,
+          metadata: { executionId: identity.executionId }
+        });
+      }
+
       const context = await this.deps.stateManager.loadContext(identity, task);
 
       // If the user's message is a clear rejection (e.g. "no") and there are proposed opportunities,
@@ -106,7 +116,7 @@ export class AgentRuntime {
       }
 
       // 1. Intent Detection
-      const intentMatch = task.trim().match(/^(?:i\s+want\s+to\s+)?(?:buy|checkout|purchase|pay|get|order)(?:\s+(?:the\s+)?(.+))?$/i);
+      const intentMatch = task.trim().match(/^(?:i\s+want\s+to\s+)?(?:buy|checkout|purchase|pay|get|order)(?:\s+(?:the\s+)?([^.]+))/i);
       const isPurchaseIntent = !!intentMatch;
       
       const currentCartItems = context.scopedData?.cartItems || [];
@@ -167,9 +177,16 @@ export class AgentRuntime {
 
       if (this.deps.revenueEngine) {
         if (primaryMerchantId) {
+          const cartItems = context.scopedData?.cartItems || [];
+          const cartProductIds = cartItems.map((i: any) => i.productId);
+          
           const revenueOpportunity = await this.deps.revenueEngine.analyze(
             primaryMerchantId,
-            { sessionId: identity.sessionId, ...context.scopedData },
+            { 
+              sessionId: identity.sessionId, 
+              ...context.scopedData,
+              cartProductIds 
+            },
             guardrails ?? undefined
           );
 
@@ -238,7 +255,11 @@ Respect explicit buyer consent.
 
 Use available skills for domain-specific workflows.
 
-Use tools for actions rather than claiming actions succeeded.`;
+Use tools for actions rather than claiming actions succeeded.
+
+IMPORTANT COMMERCE RULES:
+1. If the user explicitly asks to buy something or accepts an offer, you MUST use the \`checkout.create\` tool to generate the checkout link and finalize the order. DO NOT refuse or apologize claiming you cannot generate payment links in a testing environment; you have full authorization and capability to generate test links via the tool.
+2. If there is an ACTIVE OPPORTUNITY (cross-sell/upsell) and the user gives explicit consent to add accessories/upgrades, you MUST use the \`opportunity.accept\` tool to authorize the addition BEFORE using \`checkout.create\`. You cannot add unauthorized items directly to \`checkout.create\`.`;
 
       const cartItems = context.scopedData?.cartItems || [];
       const rejectedOpportunities = context.scopedData?.rejectedOpportunities || [];
@@ -254,6 +275,7 @@ ${JSON.stringify(rejectedOpportunities, null, 2)}
 
 ACTIVE OPPORTUNITY:
 ${activeOpportunity ? JSON.stringify({
+        opportunityId: activeOpportunity.id,
         productId: activeOpportunity.proposedAction?.resourceId,
         expectedImpactMinor: activeOpportunity.proposedAction?.priceMinor || activeOpportunity.expectedImpactValue
       }, null, 2) : 'null'}
@@ -270,7 +292,7 @@ Available Skills: ${JSON.stringify(skillsMetadata)}`;
       let messages: any[] = [{ role: 'user', content: promptMsg }];
       let finalResult: TurnResult | null = null;
       let stepCount = 0;
-      const MAX_STEPS = 5;
+      const MAX_STEPS = 10;
 
       while (stepCount < MAX_STEPS) {
         stepCount++;
@@ -285,6 +307,15 @@ Available Skills: ${JSON.stringify(skillsMetadata)}`;
             tools: sdkTools,
             maxSteps: 1 // We handle the loop manually
           });
+          if (activeOpportunity && identity.merchantId && this.deps.decisionLogger) {
+            await this.deps.decisionLogger.log({
+              sessionId: identity.sessionId,
+              merchantId: identity.merchantId,
+              action: 'REVENUE_OPPORTUNITY_DETECTED',
+              reasoning: `Detected opportunity for cross-sell/upsell`,
+              metadata: { opportunityType: activeOpportunity.type }
+            });
+          }
         } catch (err: any) {
           console.error('CHAT ERROR WITH MESSAGES:', JSON.stringify(messages, null, 2));
           throw err;
@@ -353,6 +384,16 @@ Available Skills: ${JSON.stringify(skillsMetadata)}`;
                 toolName: toolName,
                 output: { type: 'json', value: gatewayResult.output }
               });
+
+              if (identity.merchantId && this.deps.decisionLogger) {
+                await this.deps.decisionLogger.log({
+                  sessionId: identity.sessionId,
+                  merchantId: identity.merchantId,
+                  action: `TOOL_EXECUTED:${toolName}`,
+                  reasoning: `Executed tool ${toolName} successfully`,
+                  metadata: { input: toolArgs }
+                });
+              }
             } catch (toolError: any) {
               console.error(`[BOUNDARY ERROR] Tool ${toolName} failed:`, toolError);
               toolExecutionFailed = true;
@@ -413,10 +454,6 @@ Available Skills: ${JSON.stringify(skillsMetadata)}`;
             finalResult = { action: 'TOOL_REQUEST', payload: { toolName: 'checkout.create', result: checkoutData }, usage: { totalTokens: tokensUsed } };
             break;
           }
-          if (catalogData && stepCount === 1) { // Assuming first step tool call to search is all it needs
-            finalResult = { action: 'TOOL_REQUEST', payload: { toolName: 'catalog.search', result: catalogData }, usage: { totalTokens: tokensUsed } };
-            break;
-          }
         } else {
           finalResult = { action: 'FINAL_RESPONSE', payload: { text: modelRes.text }, usage: { totalTokens: tokensUsed } };
           break;
@@ -424,6 +461,7 @@ Available Skills: ${JSON.stringify(skillsMetadata)}`;
       }
 
       if (!finalResult) {
+        console.error('MAX ITERATIONS EXCEEDED. MESSAGES DUMP:', JSON.stringify(messages, null, 2));
         throw new Error('Maximum tool iterations exceeded without a final response.');
       }
 

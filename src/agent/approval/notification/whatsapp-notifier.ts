@@ -9,7 +9,7 @@ export class WhatsAppNotifier implements NotificationAdapter {
     const amountMinor = payload?.input?.amountMinor;
     const amountStr = amountMinor ? `₹${(amountMinor / 100).toFixed(2)}` : 'N/A';
 
-    const baseUrl = env.appUrl || 'http://localhost:3000';
+    const baseUrl = process.env.API_URL || 'http://localhost:3000';
     const approveUrl = `${baseUrl}/api/approvals/${approval.token}/approve`;
     const rejectUrl = `${baseUrl}/api/approvals/${approval.token}/reject`;
 

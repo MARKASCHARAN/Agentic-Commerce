@@ -117,6 +117,7 @@ export interface StateManager {
 }
 
 import { ToolGateway } from '../tools';
+import { DecisionLogger } from '../audit/decision-logger';
 
 export interface SkillSelector {
   selectSkill(task: string, context: AgentContext): Promise<string | null>;
@@ -142,6 +143,7 @@ export interface AgentRuntimeDependencies {
   eventEmitter: AgentEventEmitter;
   revenueEngine?: RevenueIntelligenceEngine;
   revenueTracker?: RevenueTracker;
+  decisionLogger: DecisionLogger;
   capabilityResolver?: MerchantCapabilityResolver;
   negotiationEngine?: NegotiationEngine;
   guardrailRepository?: MerchantGuardrailRepository;

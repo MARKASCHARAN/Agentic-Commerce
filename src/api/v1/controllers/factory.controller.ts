@@ -5,6 +5,13 @@ const prisma = new PrismaClient();
 
 const ALLOWED_CAPABILITIES = ['catalog', 'inventory', 'pricing', 'negotiation', 'checkout'];
 
+const CAPABILITY_MAP: Record<string, string[]> = {
+  'catalog': ['catalog.search', 'catalog.get'],
+  'inventory': ['inventory.check', 'inventory.reserve', 'inventory.release'],
+  'checkout': ['checkout.create', 'opportunity.accept'],
+  'negotiation': ['negotiation.create']
+};
+
 const SKILL_PREREQUISITES: Record<string, string[]> = {
   'crossSell': ['catalog', 'inventory'],
   'upsell': ['catalog', 'inventory'],
@@ -77,7 +84,10 @@ export class FactoryController {
           }
         });
 
-        for (const cap of validCapabilities) {
+        const fineGrainedCaps = validCapabilities.flatMap((cap: string) => CAPABILITY_MAP[cap] || []);
+        const allCaps = [...new Set([...validCapabilities, ...fineGrainedCaps])];
+
+        for (const cap of allCaps) {
           await tx.merchantCapability.create({
             data: {
               merchantId,
@@ -102,7 +112,7 @@ export class FactoryController {
 
   static async uploadCatalog(req: Request, res: Response): Promise<void> {
     try {
-      const { merchantId } = req.params;
+      const merchantId = req.params.merchantId as string;
       const { products } = req.body;
 
       if (!Array.isArray(products)) {
@@ -111,7 +121,10 @@ export class FactoryController {
       }
 
       const mapping: any[] = [];
+      const externalToInternalMap: Record<string, string> = {};
+
       await prisma.$transaction(async (tx) => {
+        // Step 1: Create all products
         for (const p of products) {
           const product = await tx.product.create({
             data: {
@@ -124,6 +137,37 @@ export class FactoryController {
             }
           });
           mapping.push({ externalId: p.externalId, productId: product.id });
+          if (p.externalId) {
+            externalToInternalMap[p.externalId] = product.id;
+          }
+        }
+
+        // Step 2: Resolve relations in descriptions
+        for (const m of mapping) {
+          const p = products.find((prod: any) => prod.externalId === m.externalId);
+          if (p && p.description && p.description.includes('<!-- rel:')) {
+            const match = p.description.match(/<!--\s*rel:\s*(\[[^\]]*\])\s*-->/);
+            if (match) {
+              try {
+                const relExternalIds: string[] = JSON.parse(match[1]);
+                const relInternalIds = relExternalIds
+                  .map(extId => externalToInternalMap[extId])
+                  .filter(id => id); // Remove undefined if externalId not found
+                
+                const updatedDescription = p.description.replace(
+                  match[0],
+                  `<!-- rel: ${JSON.stringify(relInternalIds)} -->`
+                );
+
+                await tx.product.update({
+                  where: { id: m.productId },
+                  data: { description: updatedDescription }
+                });
+              } catch (e) {
+                console.error('Failed to parse relationships in description for', p.externalId);
+              }
+            }
+          }
         }
       });
 
@@ -138,7 +182,7 @@ export class FactoryController {
 
   static async updateInventory(req: Request, res: Response): Promise<void> {
     try {
-      const { merchantId } = req.params;
+      const merchantId = req.params.merchantId as string;
       const { items } = req.body;
 
       if (!Array.isArray(items)) {

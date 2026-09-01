@@ -13,6 +13,7 @@ export async function getOrCreateCart(
   let cart = await prisma.cart.findUnique({
     where: { sessionId }
   });
+  console.log(`[DEBUG CART] getOrCreateCart(${sessionId}) - found in DB:`, cart ? JSON.stringify(cart.items) : 'null');
 
   if (!cart) {
     await prisma.session.upsert({
@@ -38,6 +39,7 @@ export async function updateCartItems(
   sessionId: string,
   items: CartItem[]
 ) {
+  console.log(`[DEBUG CART] updateCartItems(${sessionId}) - updating to:`, JSON.stringify(items));
   return await prisma.cart.update({
     where: { sessionId },
     data: {

@@ -8,7 +8,7 @@ export const createOpportunityAcceptTool = (
   prisma: PrismaClient
 ): Tool<z.infer<typeof acceptSchema>, any> => {
   const acceptSchema = z.object({
-    opportunityId: z.string().describe('The ID of the PROPOSED revenue opportunity to accept'),
+    opportunityId: z.string().describe('The ID of the PROPOSED revenue opportunity OR the Product ID of the cross-sell item to accept'),
   });
 
   return {
@@ -33,7 +33,7 @@ export const createOpportunityAcceptTool = (
           throw new Error('Session ID is required to accept an opportunity');
         }
 
-        const opportunity = await prisma.revenueOpportunityLog.findFirst({
+        let opportunity = await prisma.revenueOpportunityLog.findFirst({
           where: {
             id: input.opportunityId,
             merchantId: context.merchantId,
@@ -41,6 +41,25 @@ export const createOpportunityAcceptTool = (
             status: 'PROPOSED'
           }
         });
+
+        if (!opportunity) {
+          // Fallback: Check if the input is actually a resourceId (productId)
+          const allProposed = await prisma.revenueOpportunityLog.findMany({
+            where: {
+              merchantId: context.merchantId,
+              sessionId: context.sessionId,
+              status: 'PROPOSED'
+            }
+          });
+          
+          for (const opp of allProposed) {
+            const resId = (opp as any).proposedAction?.resourceId;
+            if (resId === input.opportunityId) {
+              opportunity = opp;
+              break;
+            }
+          }
+        }
 
         if (!opportunity) {
           throw new Error(`Security Exception: Opportunity ${input.opportunityId} not found, does not belong to this session/merchant, or is not in PROPOSED status.`);

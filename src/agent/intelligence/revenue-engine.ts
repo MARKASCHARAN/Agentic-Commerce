@@ -61,8 +61,10 @@ export class RevenueIntelligenceEngine {
     const rawOpportunities: RevenueOpportunity[] = [];
     for (const detector of applicableDetectors) {
       const results = await detector.detect(merchantId, capabilities, context);
+      console.log(`[DEBUG REVENUE] Detector ${detector.constructor.name} returned:`, results.length);
       rawOpportunities.push(...results);
     }
+    console.log('[DEBUG REVENUE] rawOpportunities:', rawOpportunities.length);
 
     if (guardrails) {
       if (!guardrails.upsellEnabled) {
@@ -80,6 +82,7 @@ export class RevenueIntelligenceEngine {
     }
 
     if (rawOpportunities.length === 0) {
+      console.log('[DEBUG REVENUE] No raw opportunities after guardrails.');
       return null;
     }
 
@@ -138,8 +141,8 @@ export class RevenueIntelligenceEngine {
       return null;
     }
 
-    // Resolve merchant strategy for ranking
     const strategy = this.strategyResolver ? await this.strategyResolver.resolve(merchantId) : undefined;
+    console.log('[DEBUG REVENUE] safeOpportunities:', safeOpportunities.length);
 
     return await this.rankOpportunities(safeOpportunities, context, guardrails, strategy);
   }
@@ -178,7 +181,20 @@ export class RevenueIntelligenceEngine {
     return true; 
   }
 
-  private async rankOpportunities(opportunities: RevenueOpportunity[], context: Record<string, any>, guardrails?: MerchantGuardrailConfig, strategy?: MerchantStrategy): Promise<RevenueOpportunity> {
+  private async rankOpportunities(opportunities: RevenueOpportunity[], context: Record<string, any>, guardrails?: MerchantGuardrailConfig, strategy?: MerchantStrategy): Promise<RevenueOpportunity | null> {
+    
+    // Filter by buyer budget if provided in context
+    if (context.buyerBudgetMinor && context.basePriceMinor) {
+      opportunities = opportunities.filter(opp => {
+        const addedPrice = opp.proposedAction?.priceMinor || 0;
+        return (context.basePriceMinor + addedPrice) <= context.buyerBudgetMinor;
+      });
+    }
+
+    if (opportunities.length === 0) {
+      return null;
+    }
+
     if (opportunities.length === 1) {
       opportunities[0].evidence = `AI selected: ${opportunities[0].evidence}`;
       return opportunities[0];

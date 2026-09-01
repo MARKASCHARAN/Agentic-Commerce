@@ -15,9 +15,11 @@ export class AOVDetector implements OpportunityDetector {
 
     const cartProductIds: string[] = context.cartProductIds || [];
     const sessionId = context.sessionId;
+    console.log('[DEBUG AOV] cartProductIds:', cartProductIds);
 
     for (const productId of cartProductIds) {
       const complements = await this.catalogProvider.getRelatedProducts(merchantId, productId);
+      console.log(`[DEBUG AOV] complements for ${productId}:`, complements.map((c: any) => c.id));
       for (const comp of complements) {
         if (!cartProductIds.includes(comp.id)) {
           opportunities.push({

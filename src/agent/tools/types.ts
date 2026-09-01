@@ -19,6 +19,7 @@ export interface ToolExecutionContext extends ExecutionIdentity {
   revenueOpportunity?: any;
   cartProductIds?: string[];
   conversation?: any;
+  existingApproval?: any;
 }
 
 export interface ToolExecutionRequest<Input = unknown> {

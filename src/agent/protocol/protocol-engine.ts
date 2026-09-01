@@ -1,12 +1,14 @@
 import { PrismaClient } from '@prisma/client';
 import { PricingService, PricingItem } from '../intelligence/pricing-service.js';
 import { PaymentProvider } from '../payments/provider.js';
+import { DecisionLogger } from '../audit/decision-logger.js';
 
 export class ProtocolEngine {
   constructor(
     private prisma: PrismaClient,
     private pricingService: PricingService,
-    private paymentProvider: PaymentProvider
+    private paymentProvider: PaymentProvider,
+    private decisionLogger?: DecisionLogger
   ) {}
 
   async createOffer(merchantId: string, buyerId: string, sessionId: string, items: PricingItem[], requestedDiscountMinor: number = 0) {
@@ -120,6 +122,15 @@ export class ProtocolEngine {
           data: { quantity: { decrement: item.quantity } }
         });
         if (updatedInventory.quantity < 0) {
+          if (this.decisionLogger) {
+            await this.decisionLogger.log({
+              sessionId: offer.sessionId,
+              merchantId: offer.merchantId,
+              action: 'SAFE_FAILURE',
+              reasoning: `Insufficient inventory for product ${item.productId}`,
+              metadata: { productId: item.productId, requestedQuantity: item.quantity }
+            });
+          }
           throw new Error(`Insufficient inventory for product ${item.productId}`);
         }
       }
@@ -180,6 +191,30 @@ export class ProtocolEngine {
           updatedAt: new Date()
         }
       });
+
+      if (this.decisionLogger) {
+        await this.decisionLogger.log({
+          sessionId: offer.sessionId,
+          merchantId: offer.merchantId,
+          action: 'BUYER_ACCEPTED',
+          reasoning: `Buyer accepted offer for ${offer.totalMinor / 100}`,
+          metadata: { offerId: offer.id }
+        });
+        await this.decisionLogger.log({
+          sessionId: offer.sessionId,
+          merchantId: offer.merchantId,
+          action: 'ORDER_CREATED',
+          reasoning: `Created order ${order.id} and reserved inventory atomically`,
+          metadata: { orderId: order.id }
+        });
+        await this.decisionLogger.log({
+          sessionId: offer.sessionId,
+          merchantId: offer.merchantId,
+          action: 'PAYMENT_LINK_CREATED',
+          reasoning: `Generated Razorpay link for order ${order.id}`,
+          metadata: { url: providerLink.data.shortUrl }
+        });
+      }
 
       return {
         offer: finalOffer,

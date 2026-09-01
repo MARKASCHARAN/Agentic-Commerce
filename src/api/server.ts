@@ -1,9 +1,13 @@
 import express from "express";
+import cors from "cors";
 import { notFound } from "./middleware/not-found.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { env } from "../config/env.js";
 import v1Routes from "./v1/routes/index.js";
+import discoveryRoutes from "./v1/routes/discovery.routes.js";
 import internalRoutes from "./internal/routes/index.js";
+import { handleMcpRequest, handleMcpSse, handleMcpMessage } from "./mcp/index.js";
+import { mcpAuthMiddleware } from "./mcp/auth.js";
 import { BullMQOutboxWorker } from "../agent/outbox/bullmq-worker.js";
 import { OutboxRepository } from "../database/repositories/outbox.repository.js";
 import { createPaymentReconciliationHandler } from "../agent/payments/reconciliation.js";
@@ -18,10 +22,15 @@ app.use('/v1/webhooks/razorpay', express.raw({ type: 'application/json' }));
 app.use('/api/webhooks/razorpay', express.raw({ type: 'application/json' }));
 
 app.use(express.json());
+app.use(cors());
 
 app.use('/v1', v1Routes);
 app.use('/api', v1Routes); // Support Razorpay dashboard pointing to /api
+app.use('/v1/agent-discovery', discoveryRoutes);
 app.use('/internal', internalRoutes);
+app.get('/mcp', mcpAuthMiddleware, handleMcpSse);
+app.post('/mcp', mcpAuthMiddleware, handleMcpRequest);
+app.post('/mcp/message', mcpAuthMiddleware, handleMcpMessage);
 
 app.get('/pay/:orderId', (req, res) => {
   const razorpayOrderId = req.params.orderId;

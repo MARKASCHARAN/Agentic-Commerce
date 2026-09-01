@@ -1,0 +1,67 @@
+import { z } from 'zod';
+import { PrismaClient } from '@prisma/client';
+import { getMcpContext } from '../context.js';
+import { RevenueIntelligenceEngine } from '../../../agent/intelligence/revenue-engine.js';
+import { MerchantCapabilityResolver } from '../../../agent/intelligence/capability-resolver.js';
+
+const prisma = new PrismaClient();
+const capabilityResolver = new MerchantCapabilityResolver();
+const revenueEngine = new RevenueIntelligenceEngine(
+  {} as any,
+  {} as any,
+  capabilityResolver,
+  prisma
+);
+
+export const checkOpportunitiesTool = {
+  name: 'merchant.check_opportunities',
+  description: 'Check the merchant backend for active cross-sell or upsell opportunities for the buyer. Call this after searching products or generating an offer to see if you can suggest relevant add-ons.',
+  schema: {
+    cartValueMinor: z.number().optional().describe('Current cart or offer value in minor units')
+  },
+  handler: async ({ cartValueMinor }: { cartValueMinor?: number }) => {
+    try {
+      const ctx = getMcpContext();
+      
+      const guardrails = await prisma.merchantGuardrail.findUnique({
+        where: { merchantId: ctx.merchantId }
+      });
+      
+      if (!guardrails) throw new Error('Guardrails not found');
+
+      // Fetch the latest offer for this session to extract product IDs
+      const offer = await prisma.offer.findFirst({
+        where: { sessionId: ctx.sessionId, status: { in: ['OFFERED', 'COUNTERED', 'PAYMENT_PENDING'] } },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      let cartProductIds: string[] = [];
+      if (offer && Array.isArray(offer.items)) {
+        cartProductIds = (offer.items as any[]).map(item => item.productId);
+      }
+
+      const opportunity = await revenueEngine.analyze(
+        ctx.merchantId, 
+        { sessionId: ctx.sessionId, cartValueMinor: cartValueMinor || (offer ? offer.totalMinor : 0), cartProductIds },
+        guardrails as any
+      );
+
+      if (!opportunity) {
+        return { content: [{ type: "text", text: JSON.stringify({ message: "No active opportunities." }) }] };
+      }
+
+      return {
+        content: [{ type: "text", text: JSON.stringify({ 
+          type: opportunity.type,
+          description: opportunity.evidence,
+          suggestedProductId: opportunity.proposedAction.resourceId,
+          suggestedPriceMinor: opportunity.proposedAction.priceMinor,
+          suggestedPrice: opportunity.proposedAction.priceMinor ? opportunity.proposedAction.priceMinor / 100 : undefined,
+          expectedValueMinor: opportunity.expectedImpactValue
+        }, null, 2) }]
+      };
+    } catch (e: any) {
+      return { isError: true, content: [{ type: "text", text: JSON.stringify({ code: "CHECK_OPPORTUNITIES_FAILED", message: e.message }) }] };
+    }
+  }
+};

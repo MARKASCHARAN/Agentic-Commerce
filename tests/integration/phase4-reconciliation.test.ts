@@ -54,6 +54,7 @@ describe.sequential('Phase 4: Measurement & Reconciliation Validation', () => {
     await prisma.commerceItem.deleteMany({});
     await prisma.commerceOrder.deleteMany({});
     await prisma.cart.deleteMany({});
+    await prisma.message.deleteMany({});
     await prisma.session.deleteMany({});
     
     // Clean up products

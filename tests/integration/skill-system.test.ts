@@ -202,6 +202,29 @@ name: incomplete
     await prisma.product.deleteMany({ where: { merchantId: 'merchant-saas-01' } });
 
     // Seed the explicit products this test expects to ensure it doesn't fail based on test execution order
+    await prisma.user.upsert({
+      where: { id: 'demo-user-id' },
+      update: {},
+      create: { id: 'demo-user-id', email: 'demo@example.com', name: 'Demo User' }
+    });
+
+    await prisma.merchant.upsert({
+      where: { id: 'merchant-saas-01' },
+      update: {},
+      create: { id: 'merchant-saas-01', name: 'SaaS Merchant', userId: 'demo-user-id' }
+    });
+
+    await prisma.merchant.upsert({
+      where: { id: 'merchant-electronics-01' },
+      update: {},
+      create: { id: 'merchant-electronics-01', name: 'Electronics Merchant', userId: 'demo-user-id' }
+    });
+
+    await prisma.merchant.upsert({
+      where: { id: 'demo-merchant-id' },
+      update: {},
+      create: { id: 'demo-merchant-id', name: 'Demo Merchant', userId: 'demo-user-id' }
+    });
     await prisma.product.upsert({
       where: { id: 'prod_saas_starter_skill' },
       update: {},
@@ -211,6 +234,18 @@ name: incomplete
       where: { id: 'prod_saas_pro_skill' },
       update: {},
       create: { id: 'prod_saas_pro_skill', merchantId: 'merchant-saas-01', name: 'Enterprise Pro Cloud Plan', priceMinor: 500000, currency: 'INR' }
+    });
+
+    await prisma.product.upsert({
+      where: { id: 'prod_laptop_01' },
+      update: {},
+      create: { id: 'prod_laptop_01', merchantId: 'merchant-electronics-01', name: 'Developer Pro Laptop', priceMinor: 15000000, currency: 'INR' }
+    });
+
+    await prisma.product.upsert({
+      where: { id: 'prod_shoes_01' },
+      update: {},
+      create: { id: 'prod_shoes_01', merchantId: 'demo-merchant-id', name: 'Running Shoes', priceMinor: 500000, currency: 'INR' }
     });
 
     // Case 1: "cloud plans" -> Starter Cloud Plan & Enterprise Pro Cloud Plan

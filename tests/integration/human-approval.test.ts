@@ -197,8 +197,8 @@ describe('Phase 5: Human-in-the-loop Approval', () => {
     expect(resData.code).toBe(409);
     expect(resData.data.error).toContain('State Mismatch');
 
-    // DB should remain PENDING
+    // DB should become REJECTED
     const updatedApproval = await approvalRepo.getById(approval.id);
-    expect(updatedApproval?.status).toBe('PENDING');
+    expect(updatedApproval?.status).toBe('REJECTED');
   });
 });

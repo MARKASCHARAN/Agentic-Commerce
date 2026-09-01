@@ -37,6 +37,19 @@ describe('Cart and Conversation Continuity Integration Tests', () => {
     await prisma.commerceItem.deleteMany({});
     await prisma.commerceOrder.deleteMany({});
     await prisma.session.deleteMany({});
+    
+    // Seed mock merchant if not present
+    await prisma.user.upsert({
+      where: { id: 'demo-user-id' },
+      update: {},
+      create: { id: 'demo-user-id', email: 'demo@example.com', name: 'Demo User' }
+    });
+    
+    await prisma.merchant.upsert({
+      where: { id: 'demo-merchant-id' },
+      update: {},
+      create: { id: 'demo-merchant-id', name: 'Demo Merchant', userId: 'demo-user-id' }
+    });
 
     // Seed mock catalog products if not present
     await prisma.product.upsert({

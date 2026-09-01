@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
-import webhookRoutes from '../../src/api/routes/webhooks.js';
+import webhookRoutes from '../../src/api/v1/routes/webhook.routes.js';
 import * as crypto from 'crypto';
 import { BullMQOutboxWorker } from '../../src/agent/outbox/bullmq-worker.js';
 import { OutboxRepository } from '../../src/database/repositories/outbox.repository.js';

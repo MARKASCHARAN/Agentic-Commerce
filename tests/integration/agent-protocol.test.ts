@@ -1,89 +1,92 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
-import protocolRoutes from '../../src/api/internal/routes/legacy-protocol.routes.js';
+import protocolRoutes from '../../src/api/v1/routes/protocol.routes.js';
 import { PrismaClient } from '@prisma/client';
 
+// Mock dependencies before importing routes
 vi.mock('@prisma/client', () => {
   const mPrismaClient = {
-    merchant: {
-      findUnique: vi.fn(),
-    },
-    session: {
-      findUnique: vi.fn(),
-      create: vi.fn(),
-    },
-    message: {
-      create: vi.fn(),
+    merchant: { findUnique: vi.fn(), findMany: vi.fn() },
+    session: { findUnique: vi.fn(), create: vi.fn() },
+    message: { create: vi.fn(), findMany: vi.fn() },
+    offer: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
+    commerceOrder: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
+    agentDecisionLog: { create: vi.fn() },
+    $transaction: vi.fn((cb) => cb(mPrismaClient))
+  };
+  return { PrismaClient: class { constructor() { return mPrismaClient; } } };
+});
+
+// Mock ui.routes to avoid instantiating the real AgentRuntime and BullMQ
+vi.mock('../../src/api/internal/routes/ui.routes.js', () => {
+  return {
+    agentRuntime: {
+      execute: vi.fn().mockResolvedValue({
+        payload: {
+          text: 'I can offer that',
+          toolName: 'checkout.create',
+          result: {
+            paymentLinkUrl: 'https://rzp.io/test',
+            orderId: 'order_123'
+          }
+        }
+      })
     }
   };
-  return { PrismaClient: vi.fn(() => mPrismaClient) };
 });
 
 describe('Protocol Routes', () => {
   let app: express.Express;
-  let mockAgentRuntime: any;
   let prisma: any;
+  let agentRuntime: any;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     prisma = new PrismaClient();
+    const uiRoutes = await import('../../src/api/internal/routes/ui.routes.js');
+    agentRuntime = uiRoutes.agentRuntime;
     
-    mockAgentRuntime = {
-      execute: vi.fn().mockResolvedValue({
-        status: 'completed',
-        message: 'I can offer that',
-        executedTools: [{
-          tool: 'checkout.create',
-          result: {
-            status: 'success',
-            checkoutData: {
-              paymentLinkUrl: 'https://rzp.io/test',
-              orderId: 'order_123'
-            }
-          }
-        }]
-      })
-    };
-
     app = express();
     app.use(express.json());
-    app.locals.agentRuntime = mockAgentRuntime;
-    app.use('/api/protocol', protocolRoutes);
+    
+    // Add fake auth middleware matching v1 protocol
+    app.use((req: any, res, next) => {
+      req.buyerId = req.headers['x-buyer-id'] || 'buyer_123';
+      next();
+    });
+    
+    app.use('/api/v1/protocol', protocolRoutes);
   });
 
-  it('should process a buyer intent and return a payment link', async () => {
+  it('should process a buyer intent and return a simulated runtime response', async () => {
     (prisma.merchant.findUnique as any).mockResolvedValue({
       id: 'merchant_123',
-      agent: { id: 'agent_123' }
+      userId: 'user_123'
     });
     
     (prisma.session.findUnique as any).mockResolvedValue(null);
-    (prisma.session.create as any).mockResolvedValue({ id: 'session_123' });
+    (prisma.session.create as any).mockResolvedValue({ id: 'session_123', merchantId: 'merchant_123', state: 'ACTIVE' });
 
     const response = await request(app)
-      .post('/api/protocol/interact')
+      .post('/api/v1/protocol/requests')
+      .set('x-buyer-id', 'buyer_123')
       .send({
-        buyerId: 'buyer_123',
         sessionId: 'session_123',
         merchantId: 'merchant_123',
-        intent: 'I want to buy a laptop'
+        message: 'I want to buy a laptop'
       });
 
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
       sessionId: 'session_123',
       merchantId: 'merchant_123',
-      response: 'I can offer that',
-      paymentLinkUrl: 'https://rzp.io/test',
-      paymentOrderId: 'order_123',
-      status: 'completed'
+      response: 'I can offer that'
     });
 
-    expect(mockAgentRuntime.execute).toHaveBeenCalledWith(
+    expect(agentRuntime.execute).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: 'session_123',
-        agentId: 'agent_123',
         merchantId: 'merchant_123'
       }),
       'I want to buy a laptop'

@@ -1,32 +1,89 @@
 ---
 name: cross-sell
-description: Propose complementary products to the buyer.
+description: Identify and propose complementary products that increase order value while remaining relevant to the buyer's purchase and constraints.
 requiredCapabilities:
   - catalog
+  - inventory
 ---
 
 # Cross-sell
 
 ## Purpose
-Propose complementary items that enhance the primary product being purchased.
 
-## When to use
-Use when a buyer selects a product that frequently pairs well with accessories or related items.
+Increase merchant revenue by identifying relevant complementary products for the
+buyer's current purchase.
 
-## Required capabilities
-- catalog
+Cross-sell recommendations must provide genuine buyer value and must remain
+within the buyer's stated constraints and the merchant's policies.
 
-## Inputs
-- selected product
-- complementary products
+## Activation
+
+Use when:
+
+- the buyer has selected or added a product to the cart
+- the Revenue Intelligence Engine provides an ACTIVE OPPORTUNITY
+- complementary products are available
+
+Do not independently invent a cross-sell opportunity.
+
+## Authority
+
+The following are authoritative:
+
+1. AUTHORITATIVE CART
+2. ACTIVE OPPORTUNITY
+3. REJECTED OPPORTUNITIES
+4. Merchant policies and guardrails
+5. Catalog and inventory state
+
+The LLM must not override these sources.
 
 ## Rules
-- Never invent products or prices.
-- Must respect merchant cross-sell policies.
-- Never add a product merely because an opportunity exists. A proposed cross-sell (ACTIVE OPPORTUNITY) requires explicit buyer acceptance.
-- A rejected opportunity (REJECTED OPPORTUNITIES) must never be proposed or added again.
-- When the buyer explicitly accepts a proposed opportunity, you MUST call opportunity.accept with the opportunityId BEFORE calling checkout.create.
-- When the buyer explicitly rejects a proposed opportunity (e.g. "no thanks"), you MUST call opportunity.reject with the opportunityId.
 
-## Expected output
-Recommendations for complementary products.
+- Never invent products.
+- Never invent prices.
+- Never invent inventory.
+- Never create an opportunity from private reasoning when no ACTIVE OPPORTUNITY exists.
+- Never propose a product already present in the cart.
+- Never propose a previously rejected opportunity.
+- Never exceed the buyer's explicit budget or constraints.
+- Never bypass merchant cross-sell policies.
+
+## Consent
+
+An ACTIVE OPPORTUNITY is only a proposal.
+
+Never add an opportunity product to the cart without explicit buyer acceptance.
+
+When the buyer accepts:
+
+1. Call `opportunity.accept` with the authoritative `opportunityId`.
+2. Wait for successful tool execution.
+3. Only then call `checkout.create` when the buyer is ready to checkout.
+
+When the buyer rejects:
+
+1. Call `opportunity.reject`.
+2. Do not propose the same opportunity again.
+
+## Forbidden
+
+Never:
+
+- call `checkout.create` to obtain consent
+- inject an opportunity product directly into checkout
+- treat silence as acceptance
+- treat "checkout" as acceptance of an opportunity
+- modify prices
+- modify inventory directly
+
+## Output
+
+When an opportunity exists, clearly communicate:
+
+- recommended product
+- authoritative price
+- buyer value/relevance
+- incremental amount
+
+Ask for explicit acceptance or rejection.

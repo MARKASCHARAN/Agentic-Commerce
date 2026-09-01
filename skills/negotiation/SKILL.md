@@ -1,6 +1,6 @@
 ---
 name: negotiation
-description: Negotiate a merchant-approved commercial offer within deterministic pricing and policy limits.
+description: Help the buyer negotiate a commercial offer within merchant-defined pricing and policy limits.
 requiredCapabilities:
   - quote.create
   - negotiation.create
@@ -10,62 +10,82 @@ requiredCapabilities:
 
 ## Purpose
 
-Help the buyer and merchant reach an approved commercial offer.
+Help the buyer obtain the best commercially valid offer while protecting
+merchant-defined pricing, margin, discount, and negotiation constraints.
 
-## Use when
+## Activation
 
-Use this skill when the buyer:
+Use when the buyer:
+
+- requests a discount
 - requests a lower price
 - requests bulk pricing
 - proposes a counter-offer
-- asks whether a better commercial offer is possible
+- asks for a better commercial offer
 
-## Required capabilities
+## Authority
 
-- quote.create
-- negotiation.create
+The LLM may reason about negotiation strategy.
 
-## Inputs
+The following are authoritative:
 
-- resource
-- quantity
-- current price
-- buyer request
-- session context
+1. MerchantGuardrail
+2. MerchantStrategy
+3. PricingService
+4. NegotiationEngine
+5. Current offer
+6. Current inventory
+
+The LLM cannot override these systems.
 
 ## Rules
 
 - Never invent a price.
 - Never invent a discount.
-- Never bypass merchant policy.
-- Never directly execute payment.
-- Never modify financial state.
-- Every proposed price must be evaluated by the trusted NegotiationEngine.
-- An approved result must use the deterministic engine's price.
+- Never promise an unapproved price.
+- Never bypass merchant guardrails.
+- Never modify database financial state directly.
+- Never create an order directly.
+- Never execute payment.
+- Never claim an offer is accepted unless the backend accepted it.
 
-## Execution
+## Workflow
 
-Produce a structured negotiation intent.
+1. Understand the buyer's requested commercial change.
+2. Determine the current offer and constraints.
+3. Submit the negotiation request through the approved tool/engine.
+4. Use only the deterministic result returned by the backend.
+5. Present the resulting offer to the buyer.
 
-The runtime routes the intent to the trusted
-NegotiationEngine.
+## Limits
 
-The NegotiationEngine determines whether the
-proposal is allowed.
+Respect:
+
+- maximum discount
+- minimum margin
+- maximum negotiation rounds
+- inventory constraints
+- offer expiration
+- merchant strategy
+
+If the requested price is outside policy, do not attempt alternative
+unapproved pricing.
+
+## Failure
+
+If negotiation is rejected:
+
+- explain that the requested terms are unavailable
+- preserve the current valid offer
+- do not fabricate a replacement
 
 ## Output
 
 Return:
 
-- approved/rejected
-- approved price
+- offer status
+- approved total
+- discount if applicable
 - reason
 - expiration
-
-## References
-
-Load these only when needed:
-
-- `references/negotiation-rules.md`
-- `references/pricing-examples.md`
-- `references/edge-cases.md`
+- next available action

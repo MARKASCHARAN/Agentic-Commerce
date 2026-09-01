@@ -4,14 +4,20 @@
   "private": true,
   "description": "Agentic commerce and autonomous payment platform",
   "scripts": {
-    "dev": "tsx watch src/api/server.ts",
+    "dev": "npx tsx watch src/api/server.ts",
     "build": "tsc",
-    "start": "node dist/api/server.js",
-    "test": "vitest --no-file-parallelism",
+    "start": "npx tsx src/api/server.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:push": "prisma db push",
+    "buyer-agent": "npx tsx src/scripts/buyer-agent-cli.ts",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "postinstall": "prisma skills sync || exit 0"
+    "postinstall": "prisma skills sync || exit 0",
+    "provision-demo-merchant": "npx tsx src/scripts/provision-demo-merchant.ts"
   },
   "engines": {
     "node": ">=20.0.0",

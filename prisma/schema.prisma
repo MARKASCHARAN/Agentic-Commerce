@@ -81,6 +81,7 @@ model Session {
   skill_executions SkillExecution[]
   tool_calls       ToolCall[]
   revenue_logs     RevenueOpportunityLog[]
+  decision_logs    AgentDecisionLog[]
   cart             Cart?
 }
 
@@ -203,6 +204,17 @@ model PolicyDecision {
   reason    String?
   timestamp DateTime @default(now())
   agent     Agent    @relation(fields: [agentId], references: [id])
+}
+
+model AgentDecisionLog {
+  id          String   @id @default(uuid())
+  sessionId   String
+  merchantId  String
+  action      String
+  reasoning   String?
+  metadata    Json?
+  timestamp   DateTime @default(now())
+  session     Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }
 
 model WorkflowRun {

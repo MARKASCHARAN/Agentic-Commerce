@@ -100,7 +100,7 @@ describe('Revenue Context Hydration and Detector Activation Tests', () => {
     const policyEngine = { evaluate: async () => ({ status: 'ALLOW' }) } as any;
     const modelGateway = { generate: async () => 'mock response' } as any;
     const capResolver = { resolve: async () => new Set(['catalog', 'inventory', 'pricing', 'negotiation', 'subscriptions', 'usage']) } as any;
-    revenueEngine = new RevenueIntelligenceEngine(policyEngine, modelGateway, capResolver, prisma);
+    revenueEngine = new RevenueIntelligenceEngine(modelGateway, capResolver, prisma);
   });
 
   afterAll(async () => {

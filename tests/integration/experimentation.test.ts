@@ -25,7 +25,7 @@ describe('Phase 36: Revenue Attribution + Experimentation', () => {
     prisma = new PrismaClient();
     capRepo = new MerchantCapabilityRepository();
     capResolver = new MerchantCapabilityResolver(capRepo);
-    engine = new RevenueIntelligenceEngine({} as any, {} as any, capResolver, prisma);
+    engine = new RevenueIntelligenceEngine({} as any, capResolver, prisma);
 
     for (let i = 0; i < 100; i++) {
       const id = `sess-exp-${i}`;

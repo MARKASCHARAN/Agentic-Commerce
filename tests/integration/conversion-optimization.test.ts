@@ -21,7 +21,7 @@ describe('Phase 33: Conversion Optimization Detector', () => {
     prisma = new PrismaClient();
     capRepo = new MerchantCapabilityRepository();
     capResolver = new MerchantCapabilityResolver(capRepo);
-    engine = new RevenueIntelligenceEngine({} as any, {} as any, capResolver, prisma);
+    engine = new RevenueIntelligenceEngine({} as any, capResolver, prisma);
 
     // Clean up test data
     await prisma.inventory.deleteMany({ where: { productId: { in: [primaryProductId, altProductId] } } });

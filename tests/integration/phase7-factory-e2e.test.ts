@@ -6,6 +6,9 @@ import v1Routes from '../../src/api/v1/routes/index.js';
 import { BullMQOutboxWorker } from '../../src/agent/outbox/bullmq-worker.js';
 import { OutboxRepository } from '../../src/database/repositories/outbox.repository.js';
 import { createPaymentReconciliationHandler } from '../../src/agent/payments/reconciliation.js';
+import { mcpContextStorage } from '../../src/api/mcp/context.js';
+import { counterOfferTool } from '../../src/api/mcp/tools/merchant-counter-offer.tool.js';
+import { acceptOfferTool } from '../../src/api/mcp/tools/merchant-accept-offer.tool.js';
 
 vi.mock('../../src/providers/razorpay/razorpay.provider.js', () => {
   return {
@@ -51,7 +54,17 @@ describe('Phase 7: Merchant Agent Factory E2E', () => {
   afterAll(async () => {
     await worker.stop();
     await prisma.$disconnect();
+    vi.restoreAllMocks();
   });
+
+  function runWithContext(fn: () => Promise<any>) {
+    return mcpContextStorage.run({
+      merchantId,
+      buyerId,
+      sessionId,
+      requestId: 'factory-req'
+    }, fn);
+  }
 
   it('1. Should provision a new merchant via Factory API', async () => {
     const res = await supertest(app)
@@ -93,16 +106,12 @@ describe('Phase 7: Merchant Agent Factory E2E', () => {
     expect(res.body.status).toBe('ACTIVE');
     expect(res.body.merchantId).toBeDefined();
     
-    // Assert Allowlist worked
     expect(res.body.provisionedCapabilities).toContain('catalog');
     expect(res.body.provisionedCapabilities).not.toContain('invalidCapability');
-    
-    // Assert Skills were provisioned due to capabilities
     expect(res.body.provisionedSkills.crossSell).toBe(true);
 
     merchantId = res.body.merchantId;
 
-    // Verify DB states
     const guardrail = await prisma.merchantGuardrail.findUnique({ where: { merchantId } });
     expect(guardrail?.maxDiscountBps).toBe(800);
     expect(guardrail?.negotiationEnabled).toBe(true);
@@ -112,7 +121,6 @@ describe('Phase 7: Merchant Agent Factory E2E', () => {
   });
 
   it('2. Should provision catalog and inventory', async () => {
-    // 2a. Catalog
     const catalogRes = await supertest(app)
       .post(`/v1/factory/merchants/${merchantId}/catalog`)
       .send({
@@ -133,7 +141,6 @@ describe('Phase 7: Merchant Agent Factory E2E', () => {
     
     const productId = catalogRes.body.products[0].productId;
 
-    // 2b. Inventory
     const inventoryRes = await supertest(app)
       .post(`/v1/factory/merchants/${merchantId}/inventory`)
       .send({
@@ -150,10 +157,8 @@ describe('Phase 7: Merchant Agent Factory E2E', () => {
   });
 
   it('3. Should simulate a COMMERCE_REQUEST and dynamically apply guardrails', async () => {
-    // Fetch product
     const product = await prisma.product.findFirst({ where: { merchantId } });
     
-    // Create an initial offer directly bypassing AgentRuntime for deterministic test
     const offerRes = await prisma.offer.create({
       data: {
         merchantId,
@@ -172,28 +177,18 @@ describe('Phase 7: Merchant Agent Factory E2E', () => {
 
     offerId = offerRes.id;
 
-    // Attempt a counter offer that asks for 20% discount (target 80,000)
-    // The configured maxDiscountBps is 800 (8%). So it should cap at 8,000 discount (92,000 total).
-    const counterRes = await supertest(app)
-      .post(`/v1/protocol/offers/${offerId}/counter`)
-      .set('x-buyer-id', buyerId)
-      .send({
-        merchantId,
-        targetTotalMinor: 800000 // 8,000 INR
-      });
-
-    expect(counterRes.status).toBe(200);
-    expect(counterRes.body.status).toBe('COUNTERED');
-    expect(counterRes.body.totalMinor).toBe(920000); // 8% limit: 80,000 minor
-    expect(counterRes.body.discountMinor).toBe(80000); 
+    // Counter offer requesting 20% discount (target 800,000). Max discount is 8%, capped to 920,000.
+    await runWithContext(async () => {
+      const res = await counterOfferTool.handler({ offerId, targetTotalMinor: 800000 });
+      expect(res.isError).toBeFalsy();
+      const payload = JSON.parse((res.content[0] as any).text);
+      expect(payload.status).toBe('COUNTERED');
+      expect(payload.approvedTotalMinor).toBe(920000);
+      expect(payload.discountMinor).toBe(80000);
+    });
   });
 
   it('4. Should accept offer and process payment webhook seamlessly', async () => {
-    // Need a dummy RevenueOpportunityLog to avoid foreign key issues during accept / payment intent creation
-    // Wait, the test uses the real v1.routes which doesn't check for RevenueOpportunityLog unless passed, but the `acceptOffer` route just creates a payment link.
-    // However, does the payment intent creation require a session? Yes, PaymentIntent is linked to CommerceOrder, CommerceOrder is linked to Session.
-    
-    // Let's create a Session first, which is needed by CommerceOrder
     await prisma.session.create({
       data: {
         id: sessionId,
@@ -203,19 +198,17 @@ describe('Phase 7: Merchant Agent Factory E2E', () => {
       }
     });
 
-    // ACCEPT
-    const acceptRes = await supertest(app)
-      .post(`/v1/protocol/offers/${offerId}/accept`)
-      .set('x-buyer-id', buyerId)
-      .send({ buyerId });
+    await runWithContext(async () => {
+      const res = await acceptOfferTool.handler({ offerId });
+      expect(res.isError).toBeFalsy();
+      const payload = JSON.parse((res.content[0] as any).text);
+      expect(payload.orderId).toBeDefined();
+      expect(payload.paymentLink).toBeDefined();
 
-    expect(acceptRes.status).toBe(200);
-    expect(acceptRes.body.orderId).toBeDefined();
-    expect(acceptRes.body.paymentUrl).toBeDefined();
+      orderId = payload.orderId;
+    });
 
-    orderId = acceptRes.body.orderId;
-
-    // WEBHOOK
+    // WEBHOOK RECONCILIATION
     const payloadObj = {
       entity: 'event',
       account_id: 'acc_123',
@@ -240,7 +233,6 @@ describe('Phase 7: Merchant Agent Factory E2E', () => {
     
     const eventId = 'evt_fac_' + Date.now();
     
-    // Create the WebhookEvent first
     await prisma.webhookEvent.create({
       data: {
         id: eventId,
@@ -269,7 +261,6 @@ describe('Phase 7: Merchant Agent Factory E2E', () => {
     const handler = createPaymentReconciliationHandler(prisma);
     await handler(outboxEventRes as any);
 
-    // Verify DB states
     const updatedOrder = await prisma.commerceOrder.findUnique({ where: { id: orderId } });
     expect(updatedOrder?.status).toBe('captured');
 

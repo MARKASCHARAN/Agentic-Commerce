@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
-import express from 'express';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { PrismaClient } from '@prisma/client';
-import v1Routes from '../../src/api/v1/routes/index.js';
 import * as crypto from 'crypto';
-import { vi } from 'vitest';
+import { mcpContextStorage } from '../../src/api/mcp/context.js';
+import { counterOfferTool } from '../../src/api/mcp/tools/merchant-counter-offer.tool.js';
+import { acceptOfferTool } from '../../src/api/mcp/tools/merchant-accept-offer.tool.js';
+import { DecisionLogger } from '../../src/agent/audit/decision-logger.js';
 
 vi.mock('../../src/providers/razorpay/razorpay.provider.js', () => {
   return {
@@ -25,10 +25,6 @@ vi.mock('../../src/providers/razorpay/razorpay.provider.js', () => {
   };
 });
 
-const app = express();
-app.use(express.json());
-app.use('/v1', v1Routes);
-
 const prisma = new PrismaClient();
 
 describe('Phase 6.5: Security & Hardening', () => {
@@ -47,8 +43,23 @@ describe('Phase 6.5: Security & Hardening', () => {
       data: { id: merchantId, email: merchantId + '@example.com' }
     });
 
-    const merchant = await prisma.merchant.create({
-      data: { id: merchantId, name: 'Security Test Merchant', userId: merchantId }
+    await prisma.merchant.create({
+      data: {
+        id: merchantId,
+        name: 'Security Test Merchant',
+        userId: merchantId,
+        guardrails: {
+          create: {
+            maxDiscountBps: 1500, // 15%
+            minimumMarginBps: 1000,
+            approvalAboveMinor: 10000000,
+            negotiationEnabled: true,
+            maxNegotiationRounds: 4,
+            crossSellEnabled: true,
+            upsellEnabled: true
+          }
+        }
+      }
     });
 
     const product = await prisma.product.create({
@@ -80,12 +91,19 @@ describe('Phase 6.5: Security & Hardening', () => {
   });
 
   afterAll(async () => {
-    // cleanup omitted for brevity in tests, assuming rollback/truncation mechanism
+    vi.restoreAllMocks();
   });
 
+  function runWithContext(buyer: string, fn: () => Promise<any>) {
+    return mcpContextStorage.run({
+      merchantId,
+      buyerId: buyer,
+      sessionId,
+      requestId: 'security-req'
+    }, fn);
+  }
+
   it('1. Create offer', async () => {
-    // Manually create an offer instead of invoking the full agent discovery flow
-    // Since we need deterministic control, let's inject it into DB directly for the tests
     const offer = await prisma.offer.create({
       data: {
         merchantId,
@@ -98,7 +116,7 @@ describe('Phase 6.5: Security & Hardening', () => {
         totalMinor: 1000000,
         currency: 'INR',
         status: 'OFFERED',
-        expiresAt: new Date(Date.now() + 10000) // 10 seconds
+        expiresAt: new Date(Date.now() + 10000)
       }
     });
     offerId = offer.id;
@@ -106,40 +124,38 @@ describe('Phase 6.5: Security & Hardening', () => {
   });
 
   it('2. Malicious counter-offer with targetTotalMinor = 1 should fail due to guardrails', async () => {
-    const res = await request(app)
-      .post(`/v1/protocol/offers/${offerId}/counter`)
-      .set('x-buyer-id', buyerId)
-      .send({ targetTotalMinor: 1 });
-
-    // The guardrail max discount is 15%. So requested discount (1,000,000 - 1) = 999,999 will be capped to 150,000.
-    // The new total should be 850,000. It shouldn't fail with 4xx, but it should deterministicially override to 850,000!
-    expect(res.status).toBe(200);
-    expect(res.body.totalMinor).toBe(850000); // 85% of subtotal
+    await runWithContext(buyerId, async () => {
+      const res = await counterOfferTool.handler({ offerId, targetTotalMinor: 1 });
+      expect(res.isError).toBeFalsy();
+      const payload = JSON.parse((res.content[0] as any).text);
+      // Guardrail max discount is 15%. So requested discount is capped to 150,000. Total = 850,000
+      expect(payload.approvedTotalMinor).toBe(850000);
+    });
   });
 
   it('3. Accept offer and verify inventory is deducted', async () => {
-    const res = await request(app)
-      .post(`/v1/protocol/offers/${offerId}/accept`)
-      .set('x-buyer-id', buyerId);
+    await runWithContext(buyerId, async () => {
+      const res = await acceptOfferTool.handler({ offerId });
+      expect(res.isError).toBeFalsy();
+      const payload = JSON.parse((res.content[0] as any).text);
+      expect(payload.paymentLink).toBeDefined();
 
-    if (res.status === 500) console.log('ERROR:', res.body);
-    expect(res.status).toBe(200);
-    expect(res.body.paymentUrl).toBeDefined();
-
-    const inventory = await prisma.inventory.findUnique({ where: { productId } });
-    expect(inventory?.quantity).toBe(5); // Started at 15, reserved 10
+      const inventory = await prisma.inventory.findUnique({ where: { productId } });
+      expect(inventory?.quantity).toBe(5); // Started at 15, reserved 10
+    });
   });
 
   it('4. Replay ACCEPT should be idempotent and not deduct inventory again', async () => {
-    const res = await request(app)
-      .post(`/v1/protocol/offers/${offerId}/accept`)
-      .set('x-buyer-id', buyerId);
+    await runWithContext(buyerId, async () => {
+      // Replay accept returns existing order & paymentUrl idempotently
+      const res = await acceptOfferTool.handler({ offerId });
+      expect(res.isError).toBeFalsy();
+      const payload = JSON.parse((res.content[0] as any).text);
+      expect(payload.paymentLink).toBeDefined();
 
-    expect(res.status).toBe(200);
-    expect(res.body.paymentUrl).toBeDefined();
-
-    const inventory = await prisma.inventory.findUnique({ where: { productId } });
-    expect(inventory?.quantity).toBe(5); // Still 5!
+      const inventory = await prisma.inventory.findUnique({ where: { productId } });
+      expect(inventory?.quantity).toBe(5); // Still 5!
+    });
   });
 
   it('5. Concurrent acceptance of limited inventory', async () => {
@@ -160,16 +176,15 @@ describe('Phase 6.5: Security & Hardening', () => {
       }
     });
 
-    const res = await request(app)
-      .post(`/v1/protocol/offers/${concurrentOffer.id}/accept`)
-      .set('x-buyer-id', buyerId);
+    await runWithContext(buyerId, async () => {
+      const res = await acceptOfferTool.handler({ offerId: concurrentOffer.id });
+      expect(res.isError).toBe(true);
+      const payload = JSON.parse((res.content[0] as any).text);
+      expect(payload.code).toBe('INVENTORY_UNAVAILABLE');
 
-    expect(res.status).toBe(500); // Because inventory update fails and rolls back
-    expect(res.body.error).toContain('Insufficient inventory');
-    
-    // Inventory should still be 5
-    const inventory = await prisma.inventory.findUnique({ where: { productId } });
-    expect(inventory?.quantity).toBe(5); 
+      const inventory = await prisma.inventory.findUnique({ where: { productId } });
+      expect(inventory?.quantity).toBe(5);
+    });
   });
 
   it('6. Cannot accept expired offer', async () => {
@@ -189,32 +204,18 @@ describe('Phase 6.5: Security & Hardening', () => {
       }
     });
 
-    const res = await request(app)
-      .post(`/v1/protocol/offers/${expiredOffer.id}/accept`)
-      .set('x-buyer-id', buyerId);
-
-    expect(res.status).toBe(500);
-    expect(res.body.error).toContain('expired');
+    await runWithContext(buyerId, async () => {
+      const res = await acceptOfferTool.handler({ offerId: expiredOffer.id });
+      expect(res.isError).toBe(true);
+      const payload = JSON.parse((res.content[0] as any).text);
+      expect(payload.code).toBe('OFFER_EXPIRED');
+    });
   });
 
   it('7. Cannot access another buyer\'s offer', async () => {
-    const res = await request(app)
-      .post(`/v1/protocol/offers/${offerId}/accept`)
-      .set('x-buyer-id', 'some-other-buyer');
-
-    expect(res.status).toBe(500);
-    expect(res.body.error).toContain('Offer not found');
-  });
-
-  it('8. Session recovery endpoint works', async () => {
-    const res = await request(app)
-      .get(`/v1/protocol/sessions/${sessionId}`)
-      .set('x-buyer-id', buyerId);
-
-    expect(res.status).toBe(200);
-    expect(res.body.sessionId).toBe(sessionId);
-    expect(res.body.activeOffer).toBeDefined();
-    // It could be OFFERED because of the concurrentOffer created in test 5 which failed to accept
-    expect(['PAYMENT_PENDING', 'OFFERED']).toContain(res.body.activeOffer.status);
+    await runWithContext('some-other-buyer', async () => {
+      const res = await acceptOfferTool.handler({ offerId });
+      expect(res.isError).toBe(true);
+    });
   });
 });

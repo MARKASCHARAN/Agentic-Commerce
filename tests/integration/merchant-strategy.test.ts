@@ -24,7 +24,7 @@ describe('Phase 37: Merchant Revenue Strategy', () => {
     prisma = new PrismaClient();
     capRepo = new MerchantCapabilityRepository();
     capResolver = new MerchantCapabilityResolver(capRepo);
-    engine = new RevenueIntelligenceEngine({} as any, {} as any, capResolver, prisma);
+    engine = new RevenueIntelligenceEngine({} as any, capResolver, prisma);
     strategyResolver = new MerchantStrategyResolver(prisma);
 
     // Clean up

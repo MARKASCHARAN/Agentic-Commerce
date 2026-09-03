@@ -140,7 +140,7 @@ describe.sequential('Phase 19: Merchant Revenue Intelligence Layer', () => {
       }
     } as any;
 
-    engine = new RevenueIntelligenceEngine(policyEngine, modelGateway, mockResolver, mockPrisma);
+    engine = new RevenueIntelligenceEngine(modelGateway, mockResolver, mockPrisma);
   });
 
   it('1. D2C E-commerce: Detects valid cross-sell opportunity and rejects out-of-stock items', async () => {

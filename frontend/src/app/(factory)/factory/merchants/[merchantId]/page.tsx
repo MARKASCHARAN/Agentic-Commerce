@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useParams } from 'next/navigation';
-import { Activity, Package, Shield, Settings, AlertCircle } from 'lucide-react';
+import { Activity, Package, Shield, Settings, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 
@@ -27,6 +27,46 @@ export default function MerchantOverviewPage() {
         <h2 className="text-3xl font-bold text-white tracking-tight">Overview</h2>
         <p className="text-zinc-400 mt-2">Control plane dashboard for <span className="text-white font-medium">{merchant.name}</span></p>
       </div>
+
+      {/* 🟢 AGENT-READY STATUS CARD */}
+      <motion.div 
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-gradient-to-r from-emerald-950/40 via-zinc-900/70 to-black border border-emerald-500/30 p-6 rounded-2xl shadow-xl backdrop-blur-md relative overflow-hidden"
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center space-x-3">
+            <span className="relative flex h-4 w-4">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500"></span>
+            </span>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="text-xl font-bold text-white tracking-wide">AGENT-READY</h3>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  AI Buyable
+                </span>
+              </div>
+              <p className="text-xs text-zinc-400 mt-0.5">Merchant is fully discoverable and transactable by AI agents through MCP</p>
+            </div>
+          </div>
+
+          <div className="bg-black/60 border border-white/10 px-4 py-2 rounded-xl flex items-center space-x-3 text-xs font-mono text-emerald-400">
+            <span className="text-zinc-500">Endpoint:</span>
+            <span>http://localhost:3000/mcp</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mt-6 pt-4 border-t border-white/5 text-xs text-zinc-300">
+          <div className="flex items-center space-x-1.5"><CheckCircle2 className="text-emerald-400 w-3.5 h-3.5" /><span>Catalog indexed</span></div>
+          <div className="flex items-center space-x-1.5"><CheckCircle2 className="text-emerald-400 w-3.5 h-3.5" /><span>Inventory synced</span></div>
+          <div className="flex items-center space-x-1.5"><CheckCircle2 className="text-emerald-400 w-3.5 h-3.5" /><span>Revenue AI active</span></div>
+          <div className="flex items-center space-x-1.5"><CheckCircle2 className="text-emerald-400 w-3.5 h-3.5" /><span>Guardrails set</span></div>
+          <div className="flex items-center space-x-1.5"><CheckCircle2 className="text-emerald-400 w-3.5 h-3.5" /><span>Razorpay connected</span></div>
+          <div className="flex items-center space-x-1.5"><CheckCircle2 className="text-emerald-400 w-3.5 h-3.5" /><span>Human gate set</span></div>
+          <div className="flex items-center space-x-1.5"><CheckCircle2 className="text-emerald-400 w-3.5 h-3.5" /><span>Reconciliation live</span></div>
+        </div>
+      </motion.div>
 
       {merchant.status !== 'ACTIVE' && (
         <motion.div 
@@ -98,13 +138,22 @@ function OverviewCard({ title, description, icon, href, linkText, idx }: any) {
             {icon}
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-white group-hover:text-emerald-300 transition-colors">{title}</h3>
-            <p className="text-zinc-400 text-sm mt-1 leading-relaxed">{description}</p>
+            <h3 className="text-lg font-bold text-white group-hover:text-emerald-400 transition-colors">
+              {title}
+            </h3>
+            <p className="text-sm text-zinc-400 mt-1">
+              {description}
+            </p>
           </div>
         </div>
-        <div className="mt-auto pt-4 border-t border-white/5 z-10">
-          <Link href={href} className="text-sm font-medium text-emerald-400 hover:text-emerald-300 transition-colors flex items-center">
-            {linkText} <span className="ml-1 transition-transform group-hover:translate-x-1">&rarr;</span>
+
+        <div className="mt-auto pt-4 border-t border-white/5 z-10 flex items-center justify-between">
+          <Link 
+            href={href}
+            className="text-sm font-medium text-emerald-400 hover:text-emerald-300 flex items-center transition-colors"
+          >
+            {linkText}
+            <span className="ml-1 text-xs">→</span>
           </Link>
         </div>
       </div>

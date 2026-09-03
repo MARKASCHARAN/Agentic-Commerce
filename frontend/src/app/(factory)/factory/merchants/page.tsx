@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { Plus, CheckCircle2, ChevronRight, Store, Settings, Activity } from 'lucide-react';
+import { Plus, CheckCircle2, ChevronRight, Store, Settings, Activity, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 
@@ -80,8 +80,25 @@ export default function MerchantsPage() {
                   
                   <div className="mt-6 pt-4 border-t border-white/5 z-10 flex items-center justify-between text-sm">
                     <span className="text-zinc-500 capitalize">{merchant.status || 'Active'}</span>
-                    <div className="flex items-center text-zinc-400 group-hover:text-white transition-colors">
-                      Enter Plane <ChevronRight size={16} className="ml-1" />
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (confirm(`Delete workspace "${merchant.name}"?`)) {
+                            api.delete(`/factory/merchants/${merchant.id}`).then(() => {
+                              window.location.reload();
+                            });
+                          }
+                        }}
+                        className="text-zinc-500 hover:text-red-400 p-1 rounded transition-colors"
+                        title="Delete workspace"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                      <div className="flex items-center text-zinc-400 group-hover:text-emerald-400 font-medium transition-colors">
+                        Enter Plane <ChevronRight size={16} className="ml-1" />
+                      </div>
                     </div>
                   </div>
                 </div>

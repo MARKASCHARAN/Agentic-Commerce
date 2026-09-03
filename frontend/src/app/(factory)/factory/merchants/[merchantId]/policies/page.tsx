@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
-import { Shield, Save, AlertTriangle, ToggleLeft, ToggleRight, Settings } from 'lucide-react';
+import { Shield, Save, AlertTriangle, ToggleLeft, ToggleRight, Settings, Info } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -32,12 +32,32 @@ export default function PoliciesPage() {
   });
 
   const [formData, setFormData] = useState<any>({});
+  const [maxDiscountPercent, setMaxDiscountPercent] = useState<string>('10');
+  const [minimumMarginPercent, setMinimumMarginPercent] = useState<string>('0');
 
   useEffect(() => {
     if (guardrailsData?.guardrails) {
       setFormData(guardrailsData.guardrails);
+      setMaxDiscountPercent(((guardrailsData.guardrails.maxDiscountBps || 0) / 100).toString());
+      setMinimumMarginPercent(((guardrailsData.guardrails.minimumMarginBps || 0) / 100).toString());
     }
   }, [guardrailsData]);
+
+  const handleMaxDiscountChange = (valStr: string) => {
+    setMaxDiscountPercent(valStr);
+    const num = parseFloat(valStr);
+    if (!isNaN(num)) {
+      setFormData((prev: any) => ({ ...prev, maxDiscountBps: Math.round(num * 100) }));
+    }
+  };
+
+  const handleMinMarginChange = (valStr: string) => {
+    setMinimumMarginPercent(valStr);
+    const num = parseFloat(valStr);
+    if (!isNaN(num)) {
+      setFormData((prev: any) => ({ ...prev, minimumMarginBps: Math.round(num * 100) }));
+    }
+  };
 
   if (isGuardrailsLoading || isCapsLoading) return <div className="p-12 text-center text-zinc-500">Loading policies...</div>;
 
@@ -52,7 +72,7 @@ export default function PoliciesPage() {
         <button 
           onClick={() => updatePolicies.mutate(formData)}
           disabled={updatePolicies.isPending}
-          className="flex items-center px-6 py-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg shadow-sm hover:bg-emerald-500/20 font-medium transition-colors disabled:opacity-50"
+          className="flex items-center px-6 py-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg shadow-sm hover:bg-emerald-500/20 font-medium transition-colors disabled:opacity-50 cursor-pointer"
         >
           <Save size={18} className="mr-2" />
           {updatePolicies.isPending ? 'Saving...' : 'Save Configuration'}
@@ -73,35 +93,59 @@ export default function PoliciesPage() {
 
             <h3 className="text-xl font-bold text-white mb-6 flex items-center">
               <Shield className="text-emerald-400 mr-3" size={24} />
-              Pricing & Negotiation
+              Pricing & Negotiation Guardrails
             </h3>
             
             <div className="space-y-6 z-10 relative">
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-300 mb-2">Max Discount (BPS)</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">
+                    Max Allowed Discount (%) 
+                    <span className="text-xs text-cyan-400 font-mono ml-2">
+                      ({formData.maxDiscountBps || 0} BPS)
+                    </span>
+                  </label>
                   <div className="relative">
                     <input 
                       type="number" 
-                      value={formData.maxDiscountBps || 0}
-                      onChange={(e) => setFormData({...formData, maxDiscountBps: parseInt(e.target.value)})}
+                      step="0.5"
+                      min="0"
+                      max="100"
+                      value={maxDiscountPercent}
+                      onChange={(e) => handleMaxDiscountChange(e.target.value)}
+                      placeholder="10"
                       className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all font-mono" 
                     />
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-zinc-500 text-sm font-mono">BPS</div>
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-emerald-400 text-sm font-bold">%</div>
                   </div>
-                  <p className="text-xs text-zinc-500 mt-2">100 BPS = 1%</p>
+                  <p className="text-xs text-zinc-500 mt-2 flex items-center">
+                    <Info size={12} className="mr-1 text-zinc-400" /> Max price cut agent can offer during negotiation.
+                  </p>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-zinc-300 mb-2">Minimum Margin (BPS)</label>
+                  <label className="block text-sm font-medium text-zinc-300 mb-2">
+                    Minimum Profit Margin (%)
+                    <span className="text-xs text-cyan-400 font-mono ml-2">
+                      ({formData.minimumMarginBps || 0} BPS)
+                    </span>
+                  </label>
                   <div className="relative">
                     <input 
                       type="number" 
-                      value={formData.minimumMarginBps || 0}
-                      onChange={(e) => setFormData({...formData, minimumMarginBps: parseInt(e.target.value)})}
+                      step="0.5"
+                      min="0"
+                      max="100"
+                      value={minimumMarginPercent}
+                      onChange={(e) => handleMinMarginChange(e.target.value)}
+                      placeholder="0"
                       className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all font-mono" 
                     />
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-zinc-500 text-sm font-mono">BPS</div>
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-emerald-400 text-sm font-bold">%</div>
                   </div>
+                  <p className="text-xs text-zinc-500 mt-2 flex items-center">
+                    <Info size={12} className="mr-1 text-zinc-400" /> Minimum profit floor agent must protect.
+                  </p>
                 </div>
               </div>
 
@@ -113,81 +157,52 @@ export default function PoliciesPage() {
                   </div>
                   <button 
                     onClick={() => setFormData({...formData, negotiationEnabled: !formData.negotiationEnabled})}
-                    className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                    className="text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer"
                   >
-                    {formData.negotiationEnabled ? <ToggleRight size={36} /> : <ToggleLeft size={36} className="text-zinc-600" />}
+                    {formData.negotiationEnabled ? <ToggleRight size={32} /> : <ToggleLeft size={32} className="text-zinc-600" />}
                   </button>
                 </div>
               </div>
 
-              <div className="pt-6 border-t border-white/5">
+              <div className="pt-4 border-t border-white/5">
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-white font-medium mb-1">Strict Inventory Check</h4>
                     <p className="text-sm text-zinc-400">Block orders if real-time inventory count drops below 1.</p>
                   </div>
                   <button 
-                    onClick={() => setFormData({...formData, strictInventoryCheck: !formData.strictInventoryCheck})}
-                    className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                    onClick={() => setFormData({...formData, inventoryCheck: !formData.inventoryCheck})}
+                    className="text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer"
                   >
-                    {formData.strictInventoryCheck ? <ToggleRight size={36} /> : <ToggleLeft size={36} className="text-zinc-600" />}
+                    {formData.inventoryCheck ? <ToggleRight size={32} /> : <ToggleLeft size={32} className="text-zinc-600" />}
                   </button>
                 </div>
               </div>
 
             </div>
           </motion.div>
+
         </div>
 
-        {/* Right Column - Capabilities */}
+        {/* Right Column - Active Capabilities */}
         <div className="space-y-6">
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-zinc-900/50 border border-white/5 rounded-2xl p-6 backdrop-blur-sm"
-          >
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-              <Settings className="text-cyan-400 mr-2" size={20} />
+          <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-6 backdrop-blur-sm">
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center">
+              <Settings className="text-emerald-400 mr-2" size={20} />
               Active Capabilities
             </h3>
             
-            {capsData?.capabilities?.length === 0 ? (
-              <p className="text-sm text-zinc-500">No capabilities enabled.</p>
-            ) : (
-              <div className="space-y-3">
-                {capsData?.capabilities?.map((cap: any) => (
-                  <div key={cap.id} className="p-3 bg-black/40 border border-white/5 rounded-xl flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-white capitalize">{cap.capabilityType.replace('_', ' ')}</p>
-                    </div>
-                    <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"></div>
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            <button className="mt-4 w-full py-2.5 border border-white/10 border-dashed rounded-xl text-sm font-medium text-zinc-400 hover:text-white hover:border-white/20 hover:bg-white/5 transition-all">
-              + Add Capability
-            </button>
-          </motion.div>
-
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-6 backdrop-blur-sm"
-          >
-            <h3 className="text-sm font-semibold text-amber-400 mb-2 flex items-center">
-              <AlertTriangle className="mr-2" size={16} />
-              Policy Warning
-            </h3>
-            <p className="text-sm text-amber-500/80 leading-relaxed">
-              Changes to pricing boundaries take effect immediately for all active agent sessions. Ensure your margins are correctly calculated.
-            </p>
-          </motion.div>
+            <div className="space-y-2">
+              {capsData?.capabilities?.map((cap) => (
+                <div key={cap.id} className="flex items-center justify-between p-3 rounded-lg bg-black/40 border border-white/5 text-sm">
+                  <span className="font-mono text-xs text-zinc-300">{cap.capability}</span>
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]"></span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-        
+
       </div>
     </div>
   );

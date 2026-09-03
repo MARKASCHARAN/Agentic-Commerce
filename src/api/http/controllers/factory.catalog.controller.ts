@@ -61,6 +61,8 @@ export class FactoryCatalogController {
     try {
       const merchantId = (req.params.merchantId as string);
       const data = req.body;
+      const qtyRaw = data.inventoryQuantity !== undefined ? data.inventoryQuantity : data.quantity;
+      const qty = qtyRaw !== undefined ? parseInt(qtyRaw, 10) : 50;
 
       const product = await prisma.product.create({
         data: {
@@ -72,9 +74,9 @@ export class FactoryCatalogController {
           currency: data.currency || 'INR',
           active: data.active !== false,
           metadata: data.metadata,
-          inventory: data.inventoryQuantity !== undefined ? {
-            create: { quantity: data.inventoryQuantity, merchantId }
-          } : undefined
+          inventory: {
+            create: { quantity: isNaN(qty) ? 50 : qty, merchantId }
+          }
         },
         include: { inventory: true }
       });
@@ -90,9 +92,11 @@ export class FactoryCatalogController {
       const merchantId = req.params.merchantId as string;
       const productId = req.params.productId as string;
       const data = req.body;
+      const qtyRaw = data.inventoryQuantity !== undefined ? data.inventoryQuantity : data.quantity;
+      const qty = qtyRaw !== undefined ? parseInt(qtyRaw, 10) : undefined;
       
       const product = await prisma.product.update({
-        where: { id: productId, merchantId },
+        where: { id: productId },
         data: {
           name: data.name,
           description: data.description,
@@ -100,7 +104,13 @@ export class FactoryCatalogController {
           priceMinor: data.priceMinor,
           currency: data.currency,
           active: data.active,
-          metadata: data.metadata
+          metadata: data.metadata,
+          inventory: qty !== undefined && !isNaN(qty) ? {
+            upsert: {
+              create: { merchantId, quantity: qty },
+              update: { quantity: qty }
+            }
+          } : undefined
         },
         include: { inventory: true }
       });
@@ -120,7 +130,6 @@ export class FactoryCatalogController {
       const merchantId = req.params.merchantId as string;
       const productId = req.params.productId as string;
       
-      // Use transaction to delete inventory first if it exists, or cascade delete
       await prisma.$transaction(async (tx) => {
         await tx.inventory.deleteMany({ where: { productId, merchantId } });
         await tx.product.delete({ where: { id: productId, merchantId } });

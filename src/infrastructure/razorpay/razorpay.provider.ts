@@ -141,15 +141,14 @@ export class RazorpayProvider implements PaymentProvider {
       const errorMsg = error?.error?.description || error?.message || '';
       if (errorMsg.includes('test mode limit') || errorMsg.includes('exceeds maximum')) {
         try {
-          const safeAmount = Math.min(request.amount, 4900000); // 49k limit for unverified test accounts
           const order = await this.razorpay.orders.create({
-            amount: safeAmount,
+            amount: request.amount,
             currency: request.currency,
             receipt: request.referenceId || `rcpt_${Date.now()}`,
             notes: request.notes
           });
           
-          const hostUrl = process.env.API_URL || 'http://localhost:3000';
+          const hostUrl = process.env.API_URL || 'http://localhost:3001';
           return {
             success: true,
             data: {
@@ -162,7 +161,15 @@ export class RazorpayProvider implements PaymentProvider {
             providerRawStatus: order.status,
             providerRawResponse: order
           };
-        } catch (fallbackError) {
+        } catch (fallbackError: any) {
+          const fbMsg = fallbackError?.error?.description || fallbackError?.message || '';
+          if (fbMsg.includes('test mode limit') || fbMsg.includes('exceeds maximum')) {
+            throw new PaymentProviderError(
+              `Order amount ₹${(request.amount / 100).toFixed(2)} exceeds Razorpay test mode limit (₹49,000.00). Please negotiate or purchase an amount <= ₹49,000.00.`,
+              'PROVIDER_LIMIT_EXCEEDED',
+              fallbackError
+            );
+          }
           throw this.mapError(fallbackError);
         }
       }

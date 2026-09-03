@@ -105,17 +105,24 @@ export class FactoryMerchantController {
   static async deleteMerchant(req: Request, res: Response): Promise<void> {
     try {
       const merchantId = (req.params.merchantId as string);
-      // We don't hard delete important commerce data, we might just archive it, but for now we throw error if there are relations, or we can soft delete.
-      // For this phase, let's just use standard Prisma delete (it will fail on FK constraint which is fine for "hard-delete" protection of active commerce).
-      // Or we can add an 'active' boolean to Merchant later.
       
-      await prisma.merchant.delete({
-        where: { id: merchantId }
+      await prisma.$transaction(async (tx) => {
+        await tx.merchantCapability.deleteMany({ where: { merchantId } });
+        await tx.merchantGuardrail.deleteMany({ where: { merchantId } });
+        await tx.merchantStrategy.deleteMany({ where: { merchantId } });
+        await tx.inventory.deleteMany({ where: { merchantId } });
+        await tx.product.deleteMany({ where: { merchantId } });
+        await tx.merchantMembership.deleteMany({ where: { merchantId } });
+        
+        await tx.merchant.delete({
+          where: { id: merchantId }
+        });
       });
       
       res.json({ success: true });
     } catch (e: any) {
-      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Cannot delete merchant with active commerce data.' }});
+      console.error('[Delete Merchant Error]', e);
+      res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: e.message || 'Failed to delete workspace' }});
     }
   }
 }

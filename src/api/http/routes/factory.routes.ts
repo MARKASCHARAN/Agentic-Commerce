@@ -23,6 +23,7 @@ router.post('/merchants', FactoryController.provisionMerchant);
 // New lifecycle routes
 router.get('/merchants', FactoryMerchantController.listMerchants);
 router.get('/merchants/draft', FactoryMerchantController.getDraftMerchant);
+router.post('/upload-catalog/:merchantId', FactoryController.uploadCatalog);
 
 // Apply auth middleware to all merchant-scoped routes
 const scopedRouter = Router({ mergeParams: true });

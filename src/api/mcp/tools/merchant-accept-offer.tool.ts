@@ -19,7 +19,6 @@ export const acceptOfferTool = {
   schema: {
     offerId: z.string().describe('The ID of the offer to accept.'),
     buyerEmail: z.string().email().optional().describe('Buyer email address for payment receipt delivery.')
-    // Notice: We do NOT accept an `amount` parameter here. The backend is authoritative.
   },
   handler: async ({ offerId, buyerEmail }: { offerId: string, buyerEmail?: string }) => {
     try {
@@ -33,11 +32,38 @@ export const acceptOfferTool = {
 
       const result = await protocolEngine.acceptOffer(offerId, ctx.buyerId, buyerEmail);
 
+      // Link orderId to any active revenue opportunity log for this session
+      try {
+        const activeLog = await prisma.revenueOpportunityLog.findFirst({
+          where: {
+            sessionId: ctx.sessionId,
+            status: { in: ['PROPOSED', 'ACCEPTED'] }
+          },
+          orderBy: { createdAt: 'desc' }
+        });
+
+        if (activeLog) {
+          await prisma.revenueOpportunityLog.update({
+            where: { id: activeLog.id },
+            data: {
+              status: 'ACCEPTED',
+              orderId: result.orderId,
+              realizedImpactMinor: result.offer.totalMinor,
+              updatedAt: new Date()
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('[REVENUE LOG LINK WARNING]', err);
+      }
+
       return {
         content: [{ type: "text", text: JSON.stringify({
           status: 'PAYMENT_REQUIRED',
+          stageMessage: 'Payment preparation complete — awaiting human payment.',
           orderId: result.orderId,
           amountMinor: result.offer.totalMinor,
+          amountFormatted: `₹${(result.offer.totalMinor / 100).toFixed(2)}`,
           currency: result.offer.currency,
           paymentProvider: 'razorpay',
           paymentLink: result.paymentUrl,
@@ -48,7 +74,6 @@ export const acceptOfferTool = {
         }, null, 2) }]
       };
     } catch (e: any) {
-      // Structure domain failures
       let code = 'ACCEPT_OFFER_FAILED';
       if (e.message.includes('expired')) code = 'OFFER_EXPIRED';
       if (e.message.includes('already accepted') || e.message.includes('not in OFFERED')) code = 'INVALID_STATE_TRANSITION';

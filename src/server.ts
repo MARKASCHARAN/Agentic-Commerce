@@ -1,4 +1,10 @@
-import express from "express";
+import express from "express"; // reloaded auto reconciliation
+
+
+
+
+
+
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { notFound } from "./api/http/middleware/not-found.js";
@@ -23,7 +29,8 @@ const prisma = new PrismaClient();
 app.use('/v1/webhooks/razorpay', express.raw({ type: 'application/json' }));
 app.use('/api/webhooks/razorpay', express.raw({ type: 'application/json' }));
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 app.use(cors({
   origin: true, // Allow all origins for dev, or specify next.js port

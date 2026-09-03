@@ -16,7 +16,7 @@ import { getMcpContext } from './context.js';
 const activeSessions = new Map<string, { transport: StreamableHTTPServerTransport, server: McpServer }>();
 const sseTransports = new Map<string, SSEServerTransport>();
 
-function createAndConfigureServer(): McpServer {
+export function createAndConfigureServer(): McpServer {
   const mcpServer = new McpServer({
     name: 'Agentic Commerce - Merchant Control Plane',
     version: '1.0.0'

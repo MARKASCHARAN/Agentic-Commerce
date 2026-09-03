@@ -6,12 +6,23 @@ import { PricingService } from '../../../modules/revenue/pricing-service.js';
 import { RazorpayProvider } from '../../../infrastructure/razorpay/razorpay.provider.js';
 import { DecisionLogger } from '../../../modules/audit/decision-logger.js';
 import { env } from '../../../config/env.js';
+import { RevenueIntelligenceEngine } from '../../../modules/revenue/revenue-engine.js';
+import { MerchantCapabilityResolver } from '../../../modules/revenue/capability-resolver.js';
+import { RevenueTracker } from '../../../modules/revenue/revenue-tracker.js';
+import { formatOpportunity } from './opportunity-formatter.js';
 
 const prisma = new PrismaClient();
 const decisionLogger = new DecisionLogger(prisma);
 const pricingService = new PricingService(prisma);
 const paymentProvider = new RazorpayProvider(env.providers.razorpayKeyId || '', env.providers.razorpayKeySecret || '');
 const protocolEngine = new ProtocolEngine(prisma, pricingService, paymentProvider, decisionLogger);
+const capabilityResolver = new MerchantCapabilityResolver();
+const revenueEngine = new RevenueIntelligenceEngine(
+  {} as any,
+  capabilityResolver,
+  prisma
+);
+const revenueTracker = new RevenueTracker(prisma);
 
 export const createRequestTool = {
   name: 'merchant.create_request',
@@ -32,7 +43,7 @@ export const createRequestTool = {
     try {
       const ctx = getMcpContext();
 
-      // Ensure merchant has an agent setup
+      // Ensure merchant exists and get guardrails
       const merchant = await prisma.merchant.findUnique({
         where: { id: ctx.merchantId },
         include: { strategy: true, capabilities: true }
@@ -42,14 +53,18 @@ export const createRequestTool = {
         throw new Error('Merchant not found');
       }
 
+      const guardrails = await prisma.merchantGuardrail.findUnique({
+        where: { merchantId: ctx.merchantId }
+      });
+
       const merchantCapabilities = merchant.capabilities.map((c: any) => c.capability);
 
       const authoritativeItems = [];
       const cartContextItems = [];
       const products = [];
+      const cartProductIds: string[] = [];
 
       for (const item of items) {
-        // Fetch exact product
         const product = await prisma.product.findUnique({
           where: { id: item.productId }
         });
@@ -58,12 +73,12 @@ export const createRequestTool = {
           throw new Error(`Product not found: ${item.productId}`);
         }
 
-        // Verify ownership
         if (product.merchantId !== ctx.merchantId) {
           throw new Error(`Product ${item.productId} does not belong to the requested merchant.`);
         }
         
         products.push(product);
+        cartProductIds.push(product.id);
 
         cartContextItems.push({
           productId: product.id,
@@ -81,7 +96,6 @@ export const createRequestTool = {
         });
       }
 
-      // Build Generic Commerce Context
       const commerceContext: any = { 
         merchantId: ctx.merchantId,
         buyerId: ctx.buyerId,
@@ -90,12 +104,12 @@ export const createRequestTool = {
         capabilities: merchantCapabilities,
         cart: {
           items: cartContextItems,
-          subtotalMinor: 0 // Will be handled by ProtocolEngine pricing calculation
+          subtotalMinor: 0
         }
       };
 
       try {
-        const { CommerceService, CapacityLimitExceededError } = await import('../../../modules/commerce/commerce-service.js');
+        const { CommerceService } = await import('../../../modules/commerce/commerce-service.js');
         const commerceService = new CommerceService(prisma);
         await commerceService.validateRequest(commerceContext, products);
       } catch (e: any) {
@@ -128,6 +142,23 @@ export const createRequestTool = {
       
       const offer = await protocolEngine.createOffer(ctx.merchantId, ctx.buyerId, ctx.sessionId, authoritativeItems, 0, buyerEmail);
 
+      const opportunity = await revenueEngine.analyze(
+        ctx.merchantId,
+        {
+          sessionId: ctx.sessionId,
+          cartProductIds,
+          cartValueMinor: offer.totalMinor
+        },
+        guardrails as any
+      );
+
+      const opportunities = [];
+      if (opportunity) {
+        await revenueTracker.logProposal(opportunity);
+        const formattedOpp = await formatOpportunity(opportunity, prisma);
+        opportunities.push(formattedOpp);
+      }
+
       return {
         content: [{ type: "text", text: JSON.stringify({ 
           sessionId: ctx.sessionId,
@@ -141,7 +172,8 @@ export const createRequestTool = {
             totalMinor: offer.totalMinor,
             currency: offer.currency,
             expiresAt: offer.expiresAt
-          }
+          },
+          opportunities
         }, null, 2) }]
       };
     } catch (e: any) {

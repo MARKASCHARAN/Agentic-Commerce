@@ -3,6 +3,8 @@ import { PrismaClient } from '@prisma/client';
 import { getMcpContext } from '../context.js';
 import { RevenueIntelligenceEngine } from '../../../modules/revenue/revenue-engine.js';
 import { MerchantCapabilityResolver } from '../../../modules/revenue/capability-resolver.js';
+import { RevenueTracker } from '../../../modules/revenue/revenue-tracker.js';
+import { formatOpportunity } from './opportunity-formatter.js';
 
 const prisma = new PrismaClient();
 const capabilityResolver = new MerchantCapabilityResolver();
@@ -11,6 +13,7 @@ const revenueEngine = new RevenueIntelligenceEngine(
   capabilityResolver,
   prisma
 );
+const revenueTracker = new RevenueTracker(prisma);
 
 export const checkOpportunitiesTool = {
   name: 'merchant.check_opportunities',
@@ -46,18 +49,29 @@ export const checkOpportunitiesTool = {
       );
 
       if (!opportunity) {
-        return { content: [{ type: "text", text: JSON.stringify({ message: "No active opportunities." }) }] };
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              message: "No active opportunities.",
+              opportunities: []
+            }, null, 2)
+          }]
+        };
       }
 
+      // Log proposal to PostgreSQL database
+      await revenueTracker.logProposal(opportunity);
+
+      const formattedOpp = await formatOpportunity(opportunity, prisma);
+
       return {
-        content: [{ type: "text", text: JSON.stringify({ 
-          type: opportunity.type,
-          description: opportunity.evidence,
-          suggestedProductId: opportunity.proposedAction.resourceId,
-          suggestedPriceMinor: opportunity.proposedAction.priceMinor,
-          suggestedPrice: opportunity.proposedAction.priceMinor ? opportunity.proposedAction.priceMinor / 100 : undefined,
-          expectedValueMinor: opportunity.expectedImpactValue
-        }, null, 2) }]
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            opportunities: [formattedOpp]
+          }, null, 2)
+        }]
       };
     } catch (e: any) {
       return { isError: true, content: [{ type: "text", text: JSON.stringify({ code: "CHECK_OPPORTUNITIES_FAILED", message: e.message }) }] };

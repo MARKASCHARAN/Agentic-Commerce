@@ -127,62 +127,47 @@ export class FactoryController {
         return;
       }
 
-      const mapping: any[] = [];
-      const externalToInternalMap: Record<string, string> = {};
+      const BATCH_SIZE = 50;
+      let importedCount = 0;
 
-      await prisma.$transaction(async (tx) => {
-        // Step 1: Create all products
-        for (const p of products) {
-          const product = await tx.product.create({
-            data: {
-              merchantId,
-              name: p.name,
-              description: p.description,
-              priceMinor: p.priceMinor,
-              currency: p.currency || 'INR',
-              active: p.active !== false
+      for (let i = 0; i < products.length; i += BATCH_SIZE) {
+        const batch = products.slice(i, i + BATCH_SIZE);
+        
+        await Promise.all(
+          batch.map(async (p: any) => {
+            let priceMinorNum = Number(p.priceMinor);
+            if (isNaN(priceMinorNum) || priceMinorNum <= 0) {
+              priceMinorNum = 99900;
+            } else {
+              priceMinorNum = Math.round(priceMinorNum);
             }
-          });
-          mapping.push({ externalId: p.externalId, productId: product.id });
-          if (p.externalId) {
-            externalToInternalMap[p.externalId] = product.id;
-          }
-        }
 
-        // Step 2: Resolve relations in descriptions
-        for (const m of mapping) {
-          const p = products.find((prod: any) => prod.externalId === m.externalId);
-          if (p && p.description && p.description.includes('<!-- rel:')) {
-            const match = p.description.match(/<!--\s*rel:\s*(\[[^\]]*\])\s*-->/);
-            if (match) {
-              try {
-                const relExternalIds: string[] = JSON.parse(match[1]);
-                const relInternalIds = relExternalIds
-                  .map(extId => externalToInternalMap[extId])
-                  .filter(id => id); // Remove undefined if externalId not found
-                
-                const updatedDescription = p.description.replace(
-                  match[0],
-                  `<!-- rel: ${JSON.stringify(relInternalIds)} -->`
-                );
+            const qty = p.quantity !== undefined && !isNaN(parseInt(p.quantity, 10)) ? parseInt(p.quantity, 10) : 50;
 
-                await tx.product.update({
-                  where: { id: m.productId },
-                  data: { description: updatedDescription }
-                });
-              } catch (e) {
-                console.error('Failed to parse relationships in description for', p.externalId);
+            await prisma.product.create({
+              data: {
+                merchantId,
+                name: (p.name || 'Unnamed Product').slice(0, 200),
+                description: (p.description || '').slice(0, 1000),
+                priceMinor: priceMinorNum,
+                currency: p.currency || 'INR',
+                active: p.active !== false,
+                inventory: {
+                  create: {
+                    merchantId,
+                    quantity: qty
+                  }
+                }
               }
-            }
-          }
-        }
-      });
+            });
+            importedCount++;
+          })
+        );
+      }
 
-      res.json({
-        created: mapping.length,
-        products: mapping
-      });
+      res.status(200).json({ success: true, imported: importedCount });
     } catch (error: any) {
+      console.error('[Factory Upload Catalog Error]', error);
       res.status(500).json({ error: error.message });
     }
   }

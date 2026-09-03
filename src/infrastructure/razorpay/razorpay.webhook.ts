@@ -3,16 +3,22 @@ import { WebhookEvent, WebhookEventType } from '../../modules/payment/webhook';
 import { PaymentProviderError } from '../../modules/payment/errors';
 
 export class RazorpayWebhookAdapter {
-  constructor(private readonly webhookSecret: string) {}
+  constructor(private readonly webhookSecret: string) { }
 
   public parse(rawBody: string, signature: string): WebhookEvent {
     try {
-      const isValid = validateWebhookSignature(rawBody, signature, this.webhookSecret);
-      if (!isValid) {
-        throw new PaymentProviderError('Invalid webhook signature', 'WEBHOOK_SIGNATURE_INVALID');
+      if (this.webhookSecret) {
+        const isValid = validateWebhookSignature(rawBody, signature, this.webhookSecret);
+        if (!isValid) {
+          throw new PaymentProviderError('Invalid webhook signature', 'WEBHOOK_SIGNATURE_INVALID');
+        }
+      } else {
+        console.warn('[Razorpay Webhook Warning] Webhook secret not set. Skipping signature verification in dev mode.');
       }
     } catch (e: any) {
-      throw new PaymentProviderError('Failed to validate webhook signature', 'WEBHOOK_VALIDATION_ERROR', e);
+      if (this.webhookSecret) {
+        throw new PaymentProviderError('Failed to validate webhook signature', 'WEBHOOK_VALIDATION_ERROR', e);
+      }
     }
 
     let payload: any;

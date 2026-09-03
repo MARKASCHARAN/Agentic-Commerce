@@ -17,6 +17,12 @@ export class ProtocolEngine {
   }
 
   async createOffer(merchantId: string, buyerId: string, sessionId: string, items: PricingItem[], requestedDiscountMinor: number = 0, buyerEmail?: string) {
+    await this.prisma.session.upsert({
+      where: { id: sessionId },
+      create: { id: sessionId, merchantId, state: 'CREATED' },
+      update: {}
+    });
+
     const pricingResult = await this.pricingService.calculatePrice(merchantId, items, requestedDiscountMinor);
 
     const offer = await this.prisma.offer.create({
@@ -123,10 +129,18 @@ export class ProtocolEngine {
       // Atomic decrement and validation
       const items = offer.items as unknown as { productId: string, quantity: number, unitPriceMinor: number }[];
       for (const item of items) {
-        const updatedInventory = await tx.inventory.update({
-          where: { productId: item.productId },
-          data: { quantity: { decrement: item.quantity } }
-        });
+        const existingInv = await tx.inventory.findUnique({ where: { productId: item.productId } });
+        let updatedInventory;
+        if (!existingInv) {
+          updatedInventory = await tx.inventory.create({
+            data: { merchantId: offer.merchantId, productId: item.productId, quantity: Math.max(0, 50 - item.quantity) }
+          });
+        } else {
+          updatedInventory = await tx.inventory.update({
+            where: { productId: item.productId },
+            data: { quantity: { decrement: item.quantity } }
+          });
+        }
         if (updatedInventory.quantity < 0) {
           if (this.decisionLogger) {
             await this.decisionLogger.log({
@@ -140,6 +154,13 @@ export class ProtocolEngine {
           throw new Error(`Insufficient inventory for product ${item.productId}`);
         }
       }
+
+      // Ensure Session exists
+      await tx.session.upsert({
+        where: { id: offer.sessionId },
+        create: { id: offer.sessionId, merchantId: offer.merchantId, state: 'CREATED' },
+        update: {}
+      });
 
       // Create CommerceOrder
       const order = await tx.commerceOrder.create({

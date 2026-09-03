@@ -41,6 +41,6 @@ export const env = {
     razorpayKeyId: process.env.RAZORPAY_KEY_ID,
     razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET,
     razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET,
-    resendApiKey: process.env.RESEND_API_KEY,
+    resendApiKey: optional("RESEND_API_KEY", ""),
   },
 } as const;

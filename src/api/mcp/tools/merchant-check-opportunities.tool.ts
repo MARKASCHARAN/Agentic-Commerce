@@ -1,13 +1,12 @@
 import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import { getMcpContext } from '../context.js';
-import { RevenueIntelligenceEngine } from '../../../agent/intelligence/revenue-engine.js';
-import { MerchantCapabilityResolver } from '../../../agent/intelligence/capability-resolver.js';
+import { RevenueIntelligenceEngine } from '../../../modules/revenue/revenue-engine.js';
+import { MerchantCapabilityResolver } from '../../../modules/revenue/capability-resolver.js';
 
 const prisma = new PrismaClient();
 const capabilityResolver = new MerchantCapabilityResolver();
 const revenueEngine = new RevenueIntelligenceEngine(
-  {} as any,
   {} as any,
   capabilityResolver,
   prisma

@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import { getMcpContext } from '../context.js';
-import { ProtocolEngine } from '../../../agent/protocol/protocol-engine.js';
-import { PricingService } from '../../../agent/intelligence/pricing-service.js';
-import { RazorpayProvider } from '../../../providers/razorpay/razorpay.provider.js';
-import { DecisionLogger } from '../../../agent/audit/decision-logger.js';
+import { ProtocolEngine } from '../../../modules/agent/protocol/protocol-engine.js';
+import { PricingService } from '../../../modules/revenue/pricing-service.js';
+import { RazorpayProvider } from '../../../infrastructure/razorpay/razorpay.provider.js';
+import { DecisionLogger } from '../../../modules/audit/decision-logger.js';
 import { env } from '../../../config/env.js';
 
 const prisma = new PrismaClient();

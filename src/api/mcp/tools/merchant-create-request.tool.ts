@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import { getMcpContext } from '../context.js';
-import { ProtocolEngine } from '../../../agent/protocol/protocol-engine.js';
-import { PricingService } from '../../../agent/intelligence/pricing-service.js';
-import { RazorpayProvider } from '../../../providers/razorpay/razorpay.provider.js';
-import { DecisionLogger } from '../../../agent/audit/decision-logger.js';
+import { ProtocolEngine } from '../../../modules/agent/protocol/protocol-engine.js';
+import { PricingService } from '../../../modules/revenue/pricing-service.js';
+import { RazorpayProvider } from '../../../infrastructure/razorpay/razorpay.provider.js';
+import { DecisionLogger } from '../../../modules/audit/decision-logger.js';
 import { env } from '../../../config/env.js';
 
 const prisma = new PrismaClient();
@@ -15,46 +15,118 @@ const protocolEngine = new ProtocolEngine(prisma, pricingService, paymentProvide
 
 export const createRequestTool = {
   name: 'merchant.create_request',
-  description: 'Start a commerce session by processing the buyer\'s natural language request. This will identify products, cross-sells, and generate an authoritative offer.',
+  description: 'Create a commerce request for specific products. The AI must pass exactly the requested productId and quantity. Never provide prices or guess product IDs.',
   schema: {
-    request: z.string().describe('The buyer\'s natural language request (e.g., "Find me 10 laptops under 10 lakh")'),
-    budgetMinor: z.number().optional().describe('The buyer\'s maximum budget in minor units (e.g., 100000000 for 10 Lakh INR)'),
-    currency: z.string().optional().describe('Currency code, e.g., INR')
+    items: z.array(
+      z.object({
+        productId: z.string().describe('The UUID of the product being requested'),
+        quantity: z.number().int().positive().describe('The number of units requested'),
+        attributes: z.record(z.union([z.string(), z.number(), z.boolean()])).optional().describe('Optional vertical-specific dimensions (e.g. requestedSeats for SaaS)'),
+      })
+    ).min(1).describe('List of products the buyer intends to purchase'),
+    budgetMinor: z.number().optional().describe('The buyer\'s maximum budget in minor units, if explicitly stated'),
+    currency: z.string().optional().describe('Currency code, e.g., INR'),
+    buyerEmail: z.string().optional().describe('The buyer\'s email address, if provided in the conversation')
   },
-  handler: async ({ request, budgetMinor, currency }: { request: string, budgetMinor?: number, currency?: string }) => {
+  handler: async ({ items, budgetMinor, currency, buyerEmail }: { items: { productId: string, quantity: number, attributes?: Record<string, string | number | boolean> }[], budgetMinor?: number, currency?: string, buyerEmail?: string }) => {
     try {
       const ctx = getMcpContext();
 
       // Ensure merchant has an agent setup
       const merchant = await prisma.merchant.findUnique({
         where: { id: ctx.merchantId },
-        include: { strategy: true }
+        include: { strategy: true, capabilities: true }
       });
 
       if (!merchant) {
         throw new Error('Merchant not found');
       }
 
-      const products = await prisma.product.findMany({
-        where: { 
-          merchantId: ctx.merchantId,
-          name: { contains: 'laptop', mode: 'insensitive' }
-        },
-        take: 1
-      });
-      
-      if (products.length === 0) {
-        throw new Error(`No products found for merchant ${ctx.merchantId}`);
+      const merchantCapabilities = merchant.capabilities.map((c: any) => c.capability);
+
+      const authoritativeItems = [];
+      const cartContextItems = [];
+      const products = [];
+
+      for (const item of items) {
+        // Fetch exact product
+        const product = await prisma.product.findUnique({
+          where: { id: item.productId }
+        });
+
+        if (!product) {
+          throw new Error(`Product not found: ${item.productId}`);
+        }
+
+        // Verify ownership
+        if (product.merchantId !== ctx.merchantId) {
+          throw new Error(`Product ${item.productId} does not belong to the requested merchant.`);
+        }
+        
+        products.push(product);
+
+        cartContextItems.push({
+          productId: product.id,
+          quantity: item.quantity,
+          unitPriceMinor: product.priceMinor,
+          attributes: item.attributes
+        });
+        
+        authoritativeItems.push({
+          productId: product.id,
+          name: product.name,
+          quantity: item.quantity,
+          unitPriceMinor: product.priceMinor,
+          attributes: item.attributes
+        });
+      }
+
+      // Build Generic Commerce Context
+      const commerceContext: any = { 
+        merchantId: ctx.merchantId,
+        buyerId: ctx.buyerId,
+        sessionId: ctx.sessionId,
+        intent: 'PURCHASE',
+        capabilities: merchantCapabilities,
+        cart: {
+          items: cartContextItems,
+          subtotalMinor: 0 // Will be handled by ProtocolEngine pricing calculation
+        }
+      };
+
+      try {
+        const { CommerceService, CapacityLimitExceededError } = await import('../../../modules/commerce/commerce-service.js');
+        const commerceService = new CommerceService(prisma);
+        await commerceService.validateRequest(commerceContext, products);
+      } catch (e: any) {
+        if (e.name === 'CapacityLimitExceededError') {
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                code: "CAPACITY_LIMIT_EXCEEDED",
+                message: e.message,
+                opportunities: e.opportunities
+              }, null, 2)
+            }]
+          };
+        }
+        if (e.message.startsWith('INVENTORY_UNAVAILABLE')) {
+           return {
+            isError: true,
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                code: "INVENTORY_UNAVAILABLE",
+                message: e.message
+              })
+            }]
+          };
+        }
+        throw e;
       }
       
-      const items = products.map(p => ({
-        productId: p.id,
-        name: p.name,
-        quantity: 10,
-        unitPriceMinor: p.priceMinor
-      }));
-      
-      const offer = await protocolEngine.createOffer(ctx.merchantId, ctx.buyerId, ctx.sessionId, items, 0);
+      const offer = await protocolEngine.createOffer(ctx.merchantId, ctx.buyerId, ctx.sessionId, authoritativeItems, 0, buyerEmail);
 
       return {
         content: [{ type: "text", text: JSON.stringify({ 

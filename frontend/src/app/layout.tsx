@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Merchant Agent Factory",
-  description: "Next.js Merchant Control Plane",
+  description: "Next.js Merchant Dashboard",
 };
 
 export default function RootLayout({

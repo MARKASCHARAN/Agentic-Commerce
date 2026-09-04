@@ -493,7 +493,7 @@ SKU-1004,4K Ultra HD Streaming Camera,Dual AI Auto-Focus Web Cam,7999,40`;
                   <Database size={40} className="mx-auto text-emerald-400" />
                   <h4 className="text-base font-bold text-white">Custom ERP / Webhook Adapter Architecture</h4>
                   <p className="text-xs text-zinc-400 max-w-md mx-auto">
-                    Expose an automated REST or Webhook payload adapter from SAP, Tally, or custom backend to continuously stream inventory updates into your Agentic Control Plane.
+                    Expose an automated REST or Webhook payload adapter from SAP, Tally, or custom backend to continuously stream inventory updates into your Agentic Commerce Dashboard.
                   </p>
 
                   <div className="bg-black/60 p-3 rounded-lg border border-white/5 text-left text-xs font-mono text-zinc-300 overflow-x-auto max-w-md mx-auto">

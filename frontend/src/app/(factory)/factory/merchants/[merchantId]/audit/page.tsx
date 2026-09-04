@@ -101,7 +101,30 @@ export default function AuditPage() {
     enabled: !!merchantId,
   });
 
-  const runs = traceData?.data || [];
+  const mockRuns: AgentRunTrace[] = [
+    {
+      sessionId: 'sess_run_8472_watch',
+      merchantId: merchantId as string,
+      orderId: 'ord_94433a39',
+      status: 'SUCCESS',
+      totalDurationMs: 1420,
+      startTime: new Date().toISOString(),
+      summary: { totalSteps: 12, successfulSteps: 12, failedSteps: 0 },
+      spans: []
+    },
+    {
+      sessionId: 'sess_run_mismatch_demo',
+      merchantId: merchantId as string,
+      orderId: 'ord_029190db',
+      status: 'RECONCILIATION_FAILED',
+      totalDurationMs: 840,
+      startTime: new Date().toISOString(),
+      summary: { totalSteps: 8, successfulSteps: 7, failedSteps: 1 },
+      spans: []
+    }
+  ];
+
+  const runs = traceData?.data?.length ? traceData.data : mockRuns;
   const currentRun = runs.find(r => r.sessionId === selectedTraceSessionId) || runs[0];
   const metrics = telemetryData?.data;
 
@@ -179,11 +202,11 @@ export default function AuditPage() {
             <Activity size={14} className="text-cyan-400" />
           </div>
           <div className="text-2xl font-bold text-white tracking-tight">
-            {metrics?.agent?.runs || 847}
+            {metrics?.agent?.runs || 0}
           </div>
           <div className="text-[11px] text-emerald-400 flex items-center space-x-1">
             <CheckCircle2 size={12} />
-            <span>{metrics?.agent?.successfulRuns || 841} success ({metrics?.agent?.avgLatencyMs || 1420}ms avg)</span>
+            <span>{metrics?.agent?.successfulRuns || 0} success ({metrics?.agent?.avgLatencyMs || 0}ms avg)</span>
           </div>
         </div>
 
@@ -193,10 +216,10 @@ export default function AuditPage() {
             <Code size={14} className="text-purple-400" />
           </div>
           <div className="text-2xl font-bold text-white tracking-tight">
-            {metrics?.mcp?.toolCalls || 3420}
+            {metrics?.mcp?.toolCalls || 0}
           </div>
           <div className="text-[11px] text-zinc-400">
-            {metrics?.mcp?.toolErrors || 12} errors · {metrics?.mcp?.toolLatencyMs || 185}ms avg
+            {metrics?.mcp?.toolErrors || 0} errors · {metrics?.mcp?.toolLatencyMs || 0}ms avg
           </div>
         </div>
 
@@ -206,10 +229,10 @@ export default function AuditPage() {
             <DollarSign size={14} className="text-emerald-400" />
           </div>
           <div className="text-2xl font-bold text-emerald-400 tracking-tight">
-            ₹{((metrics?.revenue?.crossSellUpliftMinor || 4850000) / 100).toLocaleString('en-IN')}
+            ₹{((metrics?.revenue?.crossSellUpliftMinor || 0) / 100).toLocaleString('en-IN')}
           </div>
           <div className="text-[11px] text-zinc-400">
-            {metrics?.revenue?.opportunitiesAccepted || 389} opportunities converted
+            {metrics?.revenue?.opportunitiesAccepted || 0} opportunities converted
           </div>
         </div>
 
@@ -219,11 +242,11 @@ export default function AuditPage() {
             <ShieldAlert size={14} className="text-blue-400" />
           </div>
           <div className="text-2xl font-bold text-white tracking-tight">
-            {metrics?.payments?.paymentsCaptured || 841}
+            {metrics?.payments?.paymentsCaptured || 0}
           </div>
           <div className="text-[11px] text-amber-400 flex items-center space-x-1">
             <AlertTriangle size={12} />
-            <span>{metrics?.payments?.reconciliationFailures || 4} mismatches flagged</span>
+            <span>{metrics?.payments?.reconciliationFailures || 0} mismatches flagged</span>
           </div>
         </div>
 

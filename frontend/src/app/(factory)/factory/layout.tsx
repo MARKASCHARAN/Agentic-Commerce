@@ -48,7 +48,7 @@ export default function FactoryLayout({
         <div>
           <div className="p-6">
             <h1 className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-500">Agent Factory</h1>
-            <p className="text-zinc-500 text-sm mt-1">Control Plane</p>
+            <p className="text-zinc-500 text-sm mt-1">Merchant Dashboard</p>
           </div>
           
           <nav className="flex-1 px-4 space-y-2 mt-4">

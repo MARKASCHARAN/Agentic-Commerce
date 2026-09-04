@@ -455,7 +455,7 @@ export default function NewWorkspaceWizard() {
                 </div>
                 <h3 className="text-2xl text-white font-bold mb-2">Ready to Publish</h3>
                 <p className="text-zinc-400 max-w-md mb-6">
-                  Your merchant workspace is configured with PostgreSQL persistence. Click below to activate operations and access your control plane.
+                  Your merchant workspace is configured with PostgreSQL persistence. Click below to activate operations and access your merchant dashboard.
                 </p>
               </div>
             )}

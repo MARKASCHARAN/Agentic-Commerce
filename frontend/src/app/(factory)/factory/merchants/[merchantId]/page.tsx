@@ -25,7 +25,7 @@ export default function MerchantOverviewPage() {
     <div className="space-y-8">
       <div>
         <h2 className="text-3xl font-bold text-white tracking-tight">Overview</h2>
-        <p className="text-zinc-400 mt-2">Control plane dashboard for <span className="text-white font-medium">{merchant.name}</span></p>
+        <p className="text-zinc-400 mt-2">Merchant dashboard for <span className="text-white font-medium">{merchant.name}</span></p>
       </div>
 
       {/* 🟢 AGENT-READY STATUS CARD */}

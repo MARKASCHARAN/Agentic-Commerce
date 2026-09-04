@@ -17,7 +17,7 @@ export default function MerchantsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold text-white tracking-tight">Workspaces</h2>
-          <p className="text-zinc-400 mt-2">Select a merchant environment to enter the Control Plane.</p>
+          <p className="text-zinc-400 mt-2">Select a merchant environment to enter the Merchant Dashboard.</p>
         </div>
         
         <div>

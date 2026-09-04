@@ -19,9 +19,10 @@ export const checkOpportunitiesTool = {
   name: 'merchant.check_opportunities',
   description: 'Check the merchant backend for active cross-sell or upsell opportunities for the buyer. Call this after searching products or generating an offer to see if you can suggest relevant add-ons.',
   schema: {
-    cartValueMinor: z.number().optional().describe('Current cart or offer value in minor units')
+    cartValueMinor: z.number().optional().describe('Current cart or offer value in minor units'),
+    productIds: z.array(z.string()).optional().describe('List of product IDs the user is interested in buying')
   },
-  handler: async ({ cartValueMinor }: { cartValueMinor?: number }) => {
+  handler: async ({ cartValueMinor, productIds }: { cartValueMinor?: number, productIds?: string[] }) => {
     try {
       const ctx = getMcpContext();
       
@@ -37,9 +38,10 @@ export const checkOpportunitiesTool = {
         orderBy: { createdAt: 'desc' }
       });
 
-      let cartProductIds: string[] = [];
+      let cartProductIds: string[] = productIds || [];
       if (offer && Array.isArray(offer.items)) {
-        cartProductIds = (offer.items as any[]).map(item => item.productId);
+        const offerIds = (offer.items as any[]).map(item => item.productId);
+        cartProductIds = [...new Set([...cartProductIds, ...offerIds])];
       }
 
       const opportunity = await revenueEngine.analyze(

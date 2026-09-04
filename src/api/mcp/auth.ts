@@ -20,7 +20,9 @@ export async function mcpAuthMiddleware(req: Request, res: Response, next: NextF
     
     // Hackathon fallback check
     if (merchantId === 'ac_demo_xxxxxxxxx' || merchantId === 'demo-token') {
-      const firstMerchant = await prisma.merchant.findFirst();
+      const firstMerchant = await prisma.merchant.findFirst({
+        orderBy: { createdAt: 'desc' }
+      });
       if (!firstMerchant) {
         return res.status(500).json({ error: 'No merchants exist in database to bind context' });
       }

@@ -65,6 +65,7 @@ scopedRouter.get('/opportunities', FactoryRevenueController.listOpportunities);
 
 // Audit
 scopedRouter.get('/audit', FactoryAuditController.listEvents);
+scopedRouter.get('/telemetry', FactoryAuditController.getTelemetry);
 
 // Validation & Lifecycle
 scopedRouter.get('/validate', FactoryLifecycleController.validate);
